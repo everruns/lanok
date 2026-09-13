@@ -99,6 +99,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
 
+      # The client spawns the server binary, and `cargo run --bin X` builds
+      # only X, so both have to be built up front.
+      - name: Build the example binaries
+        run: cargo build -q -p echo-protocol --bins
+
       # End-to-end over a real child process: a client spawns a server, runs the
       # handshake, calls forward, and answers a reverse request. This is the
       # peer's only true integration coverage, so it must stay green.
@@ -112,7 +117,6 @@ jobs:
       # a non-Rust server is a first-class citizen, checked rather than asserted.
       - name: Conformance vectors (Rust server)
         run: |
-          cargo build -q -p echo-protocol --bin echo-server
           cargo run -q -p lanok-cli -- conform \
             --vectors examples/echo/schema/v1/conformance.json -- ./target/debug/echo-server
 

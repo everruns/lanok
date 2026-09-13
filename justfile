@@ -50,12 +50,17 @@ doc:
 
 # Drive the echo protocol end to end: a real client process spawns a real
 # server process over stdio, exercising both directions of the peer.
+#
+# The client spawns the server binary, so both are built first: `cargo run
+# --bin X` builds only X.
 example:
+    cargo build -q -p echo-protocol --bins
     cargo run -q -p echo-protocol --bin echo-client
 
 # Run the blocking SimpleServer flavour of the same example (no async runtime
 # in the server).
 example-blocking:
+    cargo build -q -p echo-protocol --bins
     cargo run -q -p echo-protocol --bin echo-client -- --blocking
 
 # === SDKs ===
@@ -75,7 +80,7 @@ test-ts:
 # Replay the protocol's conformance vectors against every implementation:
 # Rust, Python, and TypeScript. One suite, three servers.
 conform: build-ts-sdk
-    cargo build -q -p echo-protocol --bin echo-server
+    cargo build -q -p echo-protocol --bins
     cargo run -q -p lanok-cli -- conform \
         --vectors examples/echo/schema/v1/conformance.json -- ./target/debug/echo-server
     cargo run -q -p lanok-cli -- conform \
