@@ -115,6 +115,13 @@ impl RpcError {
         )
     }
 
+    /// Replace the code, so a constructor and a classification can be written
+    /// separately: `RpcError::internal(msg).with_code(codes::INVALID_PARAMS)`.
+    pub fn with_code(mut self, code: i64) -> Self {
+        self.code = code;
+        self
+    }
+
     /// Attach structured data.
     pub fn with_data(mut self, data: Value) -> Self {
         self.data = Some(data);
@@ -163,6 +170,18 @@ mod tests {
         let error: RpcError =
             serde_json::from_str(r#"{"code":-1,"message":"x","future":"field"}"#).unwrap();
         assert_eq!(error.code, -1);
+    }
+
+    #[test]
+    fn the_builders_compose() {
+        let error = RpcError::internal("bad params")
+            .with_code(codes::INVALID_PARAMS)
+            .with_data(json!({ "field": "text" }))
+            .retryable();
+        assert_eq!(error.code, codes::INVALID_PARAMS);
+        assert_eq!(error.message, "bad params");
+        assert!(error.is_retryable());
+        assert_eq!(error.data.unwrap()["field"], "text");
     }
 
     #[test]
