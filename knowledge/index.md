@@ -16,6 +16,12 @@ bundle.
 - [SDKs](specs/sdks.md), the split between hand-written runtimes and generated
   protocol code, and the two mechanisms that hold them at parity.
 
+## Evidence
+
+- [Foreign protocol fit](specs/foreign-protocols.md), whether lanok's model
+  describes protocols it was not designed for. YEP and ACP fit; MCP does not,
+  and the reason is written down.
+
 ## Contracts
 
 - [Protocol contract](specs/protocol-contract.md), the framing, versioning,

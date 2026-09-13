@@ -106,6 +106,11 @@ matrix: build-ts-sdk
     cargo build -q -p echo-protocol --bins
     ./scripts/matrix.sh
 
+# Declare YEP, ACP and MCP on lanok, and check what still fits.
+# See knowledge/specs/foreign-protocols.md.
+foreign:
+    cargo test -q -p foreign-protocols
+
 # Describe a protocol from its committed artifacts.
 describe:
     cargo run -q -p lanok-cli -- describe --schema examples/echo/schema/v1

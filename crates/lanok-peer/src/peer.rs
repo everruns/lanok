@@ -82,8 +82,13 @@ struct Inner {
     on_abandon: Option<AbandonHook>,
     info: Mutex<PeerInfo>,
     closed: AtomicBool,
-    /// What to answer `initialize` with, when this peer serves the handshake.
+    /// What to answer the handshake request with, when this peer serves one.
     serves_handshake: Option<Hello>,
+    /// The handshake's method names. Configurable because a protocol that
+    /// already exists gets to keep its own: MCP's completion notification is
+    /// `notifications/initialized`, not `initialized`.
+    handshake_method: String,
+    initialized_method: String,
 }
 
 impl std::fmt::Debug for Inner {
@@ -107,6 +112,8 @@ pub struct PeerBuilder {
     request_timeout: Option<Duration>,
     on_abandon: Option<AbandonHook>,
     serves_handshake: Option<Hello>,
+    handshake_method: String,
+    initialized_method: String,
 }
 
 impl std::fmt::Debug for PeerBuilder {
@@ -129,6 +136,8 @@ impl Default for PeerBuilder {
             request_timeout: None,
             on_abandon: None,
             serves_handshake: None,
+            handshake_method: INITIALIZE.to_string(),
+            initialized_method: INITIALIZED.to_string(),
         }
     }
 }
@@ -211,6 +220,21 @@ impl PeerBuilder {
         self
     }
 
+    /// Rename the handshake's two methods.
+    ///
+    /// Defaults to `initialize` and `initialized`, the convention a new
+    /// protocol should follow. A protocol that already exists keeps its own:
+    /// MCP completes the handshake with `notifications/initialized`.
+    pub fn handshake_methods(
+        mut self,
+        request: impl Into<String>,
+        notification: impl Into<String>,
+    ) -> Self {
+        self.handshake_method = request.into();
+        self.initialized_method = notification.into();
+        self
+    }
+
     /// Start serving over `transport`.
     pub fn connect(self, transport: impl Transport) -> Peer {
         let (outbound, outbound_rx) = mpsc::unbounded_channel();
@@ -223,6 +247,8 @@ impl PeerBuilder {
             info: Mutex::new(PeerInfo::default()),
             closed: AtomicBool::new(false),
             serves_handshake: self.serves_handshake,
+            handshake_method: self.handshake_method,
+            initialized_method: self.initialized_method,
         }));
 
         // The pump holds a *weak* reference on purpose. A strong one would
@@ -331,7 +357,7 @@ impl Peer {
         ours: &Hello,
         negotiation: lanok_core::Negotiation,
     ) -> Result<Hello, RpcError> {
-        let theirs: Hello = self.call(INITIALIZE, ours).await?;
+        let theirs: Hello = self.call(self.0.handshake_method.clone(), ours).await?;
 
         if let Err(reason) = negotiation.accepts(theirs.protocol_version) {
             return Err(RpcError::new(
@@ -352,8 +378,48 @@ impl Peer {
         // Only after accepting: a peer that gets `initialized` has been told the
         // connection is live, and telling it so before the version check would
         // be a lie we then hang up on.
-        self.notify(INITIALIZED, Value::Null);
+        self.notify_initialized();
         Ok(theirs)
+    }
+
+    /// Run a handshake whose payloads are the protocol's own, not lanok's.
+    ///
+    /// [`Peer::handshake`] is the convention, and a new protocol should take
+    /// it. A protocol that already exists usually cannot: mira's `initialize`
+    /// answers with its eval catalogue, MCP's with `serverInfo` and a nested
+    /// `capabilities` object. Neither is a [`Hello`], and neither should have
+    /// to become one to use a peer.
+    ///
+    /// This sends `ours` and deserializes the reply, and does nothing else. The
+    /// caller checks the version and calls [`Peer::record_peer`] with whatever
+    /// it found, which is what lights up [`Peer::supports`] for capability
+    /// gating.
+    pub async fn handshake_with<P, R>(&self, method: &str, ours: &P) -> Result<R, RpcError>
+    where
+        P: serde::Serialize,
+        R: serde::de::DeserializeOwned,
+    {
+        self.call(method, ours).await
+    }
+
+    /// Tell the peer what the other side is and can do.
+    ///
+    /// Set for you by [`Peer::handshake`] and by serving one. Public so a
+    /// protocol running its own handshake through [`Peer::handshake_with`]
+    /// still gets capability gating rather than having to reimplement it.
+    pub fn record_peer(&self, info: PeerInfo) {
+        self.set_peer_info(info);
+    }
+
+    /// Announce that the handshake was accepted, using this peer's configured
+    /// notification name.
+    ///
+    /// Sent for you by [`Peer::handshake`]. Send it yourself after a
+    /// [`Peer::handshake_with`] you accepted, and only then: a peer told the
+    /// connection is live before the version check has been told something you
+    /// then hang up on.
+    pub fn notify_initialized(&self) {
+        self.notify(self.0.initialized_method.clone(), Value::Null);
     }
 
     /// Whether the peer advertised `token` during the handshake.
@@ -519,7 +585,7 @@ fn dispatch(message: Message, peer: &Peer, handler: &Arc<dyn Handler>) {
         // `initialize` from its own handler keeps doing so: intercepting
         // unconditionally would quietly steal the method from it.
         Message::Request { id, method, params }
-            if method == INITIALIZE && peer.0.serves_handshake.is_some() =>
+            if method == peer.0.handshake_method && peer.0.serves_handshake.is_some() =>
         {
             let ours = peer
                 .0
@@ -542,7 +608,7 @@ fn dispatch(message: Message, peer: &Peer, handler: &Arc<dyn Handler>) {
             });
         }
         // Acknowledged by having been received. Nothing to route.
-        Message::Notification { method, .. } if method == INITIALIZED => {}
+        Message::Notification { method, .. } if method == peer.0.initialized_method => {}
 
         Message::Notification { method, params } => handler.notification(method, params),
         Message::Request { id, method, params } => {

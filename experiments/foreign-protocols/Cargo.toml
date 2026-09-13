@@ -1,0 +1,22 @@
+[package]
+name = "foreign-protocols"
+description = "An experiment: can lanok's protocol! express protocols it was not designed for? YEP, MCP, and ACP, declared from their real method surfaces."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+# Declared but unused: the macro emits `schema_document()` behind the protocol
+# crate's own `schema` feature, so a crate that never defines one gets a
+# cfg-condition warning. Payload types here are `serde_json::Value`, so there is
+# no schema worth generating.
+schema = ["lanok/schema"]
+
+[dependencies]
+lanok.workspace = true
+serde.workspace = true
+serde_json.workspace = true

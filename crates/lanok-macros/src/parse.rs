@@ -316,16 +316,11 @@ fn validate(
                 format!("method `{}` is declared twice", method.wire_name),
             ));
         }
-        if method.wire_name == "initialize" || method.wire_name == "initialized" {
-            return Err(syn::Error::new(
-                method.span,
-                format!(
-                    "`{}` is the shared handshake and is provided for you; declaring it would \
-                     shadow version and capability negotiation",
-                    method.wire_name
-                ),
-            ));
-        }
+        // `initialize` and `initialized` may be declared. A protocol whose
+        // handshake payloads are its own (mira answers with its eval catalogue,
+        // MCP with serverInfo and a nested capabilities object) has to be able
+        // to type them. Declaring them means owning them: the peer only
+        // intercepts the handshake when it was configured to serve one.
         // A capability that is never declared is almost always a typo, and it
         // fails closed at runtime: the method silently becomes unavailable.
         if let Some(token) = &method.requires
@@ -447,14 +442,18 @@ mod tests {
     }
 
     #[test]
-    fn rejects_shadowing_the_handshake() {
-        for method in [
-            quote! { initiator fn initialize(A) -> B; },
-            quote! { initiator notify initialized(); },
-        ] {
-            let message = error(quote! { name = "p"; version = "1.0"; #method });
-            assert!(message.contains("shared handshake"), "{message}");
-        }
+    fn the_handshake_may_be_declared_by_a_protocol_that_owns_it() {
+        // mira answers `initialize` with its eval catalogue, MCP with
+        // serverInfo and a nested capabilities object. Neither is lanok's
+        // Hello, and neither should have to become one to be typed.
+        let protocol = parse(quote! {
+            name = "p"; version = "1.0";
+            initiator fn initialize(InitializeParams) -> InitializeResult;
+            initiator notify "notifications/initialized" initialized();
+        })
+        .unwrap();
+        assert_eq!(protocol.methods[0].wire_name, "initialize");
+        assert_eq!(protocol.methods[1].wire_name, "notifications/initialized");
     }
 
     #[test]

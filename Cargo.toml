@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "2"
-members = ["crates/*", "examples/echo"]
+members = ["crates/*", "examples/echo", "experiments/foreign-protocols"]
 
 [workspace.package]
 version = "0.1.0"

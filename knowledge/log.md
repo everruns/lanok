@@ -1,5 +1,23 @@
 # Knowledge Log
 
+## 2026-09-13, The handshake is the protocol's, and MCP does not fit
+
+- [Foreign protocol fit](specs/foreign-protocols.md): YEP, ACP, and MCP
+  declared from their real method surfaces, in CI. ACP's
+  `session/request_permission` is the same shape as yolop's `ui/ask` in a
+  protocol with no connection to lanok, which is the strongest evidence the
+  symmetric peer describes something real rather than two authors' habits.
+- **MCP does not fit.** `ping`, `notifications/cancelled` and
+  `notifications/progress` are bidirectional, and a lanok method has one
+  direction. Recorded as a known limit, not scheduled: nothing we own needs a
+  symmetric ping, and role gating is worth more than one.
+- The experiment changed the design on the way. The handshake was lanok's, not
+  the protocol's: payload shape and both method names were hardcoded, so mira
+  (which answers `initialize` with its eval catalogue) and MCP (which completes
+  with `notifications/initialized`) could not use it. `handshake_with`,
+  `record_peer`, and `handshake_methods` fix that, and `protocol!` no longer
+  refuses to declare the handshake.
+
 ## 2026-09-13, Cancellation is a hook, not a setting
 
 - `cancel_notification(name)` encoded one protocol's answer as the contract:

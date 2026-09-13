@@ -76,6 +76,12 @@ jobs:
       - name: Doc tests
         run: cargo test --workspace --all-features --doc
 
+      # The falsification test: three real protocols, two of them designed with
+      # no knowledge of lanok, declared from their real method surfaces. If one
+      # stops fitting, that is a finding, not a flake.
+      - name: Foreign protocols still fit
+        run: cargo test -q -p foreign-protocols
+
       # lanok-core is the crate every protocol's wire types depend on. Building
       # it alone proves it still compiles without tokio, schemars, or any of
       # the peer's dependencies in the graph.

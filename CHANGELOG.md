@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `echo-client --server <cmd>` drives an arbitrary implementation, which is how
   the Python and TypeScript servers are exercised against the Rust client.
 
+### Added
+
+- `Peer::handshake_with`, `Peer::record_peer`, and
+  `PeerBuilder::handshake_methods`: a protocol can run a handshake with its own
+  payload types and its own method names, and still get capability gating.
+  `Peer::handshake` remains the convention for new protocols. `protocol!` no
+  longer refuses to declare `initialize` / `initialized`, since a protocol whose
+  handshake payloads are its own has to be able to type them.
+- `experiments/foreign-protocols`: YEP, ACP and MCP declared from their real
+  method surfaces, run in CI. See `knowledge/specs/foreign-protocols.md`.
+
 ### Changed
 
 - **Cancellation is a hook, not a setting.** `PeerBuilder::on_abandon` hands the
