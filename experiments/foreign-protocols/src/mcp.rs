@@ -18,6 +18,14 @@
 //! why it is a deliberate third option rather than the default: its stubs live
 //! on `SharedApi`, and both handler traits carry it because it can arrive from
 //! either side.
+//!
+//! # And it is not just expressible, it works
+//!
+//! `tests/rmcp_interop.rs` drives this declaration against `rmcp`, the official
+//! Rust MCP SDK, and holds a full session with it: handshake, `ping`,
+//! `tools/list`, `tools/call`, a reverse `elicitation/create` answered from
+//! lanok's handler, and `notifications/progress` arriving mid-request. The
+//! payloads are rmcp's own types, so rmcp is the one judging the wire.
 
 type Json = serde_json::Value;
 
@@ -86,8 +94,9 @@ lanok::protocol! {
     }
 }
 
-/// The three MCP methods lanok cannot express, named so the gap is greppable
-/// rather than buried in prose.
+/// The three MCP methods that have no direction, named so the shape is
+/// greppable rather than buried in prose. Lanok could not express them at all
+/// until [`lanok::Direction::Either`] existed.
 pub const BIDIRECTIONAL_METHODS: &[&str] =
     &["ping", "notifications/cancelled", "notifications/progress"];
 

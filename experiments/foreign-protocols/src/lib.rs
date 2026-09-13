@@ -37,10 +37,20 @@
 //! protocol of ours could want a symmetric `ping`, and until MCP was written
 //! down here it could not have one.
 //!
-//! What remains unproven is **wire identity**. These declarations use
-//! `serde_json::Value` payloads and are never connected to a real MCP or ACP
-//! peer, so they show the method surface is expressible and nothing more. See
-//! `knowledge/specs/foreign-protocols.md` for what that does and does not
+//! # And MCP now talks back
+//!
+//! Declaring a method surface says something about the macro, not about the
+//! wire. `tests/rmcp_interop.rs` closes that gap for MCP: it drives lanok's
+//! declaration against `rmcp`, the official Rust MCP SDK, over one in-memory
+//! pipe with nothing translating between them. A full session passes,
+//! handshake, `ping`, `tools/list`, `tools/call`, the reverse
+//! `elicitation/create`, and `notifications/progress`, with every payload an
+//! `rmcp::model` type serialised by rmcp's own derives.
+//!
+//! That is a third party judging the wire, which is the only judge worth
+//! having. It still does not make lanok an MCP client, and `rmcp` remains the
+//! answer for anyone who wants one. ACP has no equivalent test yet. See
+//! `knowledge/specs/foreign-protocols.md` for what this does and does not
 //! license anyone to claim.
 
 pub mod acp;

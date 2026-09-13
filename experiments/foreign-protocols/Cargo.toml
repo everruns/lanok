@@ -20,3 +20,7 @@ schema = ["lanok/schema"]
 lanok.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+rmcp = { version = "2.2.0", default-features = false, features = ["server", "macros", "transport-async-rw", "elicitation"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-util", "time"] }

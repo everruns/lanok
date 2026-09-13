@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Interop test against `rmcp`**, the official Rust MCP SDK: the MCP
+  declaration in `experiments/foreign-protocols/` now holds a full session with
+  a real third-party implementation, covering the handshake, `ping`,
+  `tools/list`, `tools/call`, a reverse `elicitation/create` and inbound
+  `notifications/progress`. Payloads are rmcp's own model types, so rmcp is the
+  one judging the wire. Lanok is still not an MCP client.
+
 - **`Direction::Either`**: a method both sides may send. Its stubs live on a
   separate `SharedApi` trait so importing both roles cannot make a call
   ambiguous, and both handler traits carry it because it can arrive from either

@@ -1,5 +1,18 @@
 # Knowledge Log
 
+## 2026-09-13, A third party judges the wire
+
+- [Foreign protocol fit](specs/foreign-protocols.md): lanok's MCP declaration
+  now holds a full session with `rmcp`, the official Rust MCP SDK, over one
+  in-memory pipe with nothing translating between them. Handshake, `ping`,
+  `tools/list`, `tools/call`, a reverse `elicitation/create` and two
+  `notifications/progress`, with every payload an `rmcp::model` type.
+- Declaring a method surface says something about the macro. Only an
+  implementation that never heard of lanok can say anything about the wire, so
+  that is the test worth having, and it runs in CI.
+- It does not make lanok an MCP client and must not be read that way. ACP has
+  no equivalent test yet.
+
 ## 2026-09-13, A method may have no direction
 
 - [Foreign protocol fit](specs/foreign-protocols.md): declaring MCP found the

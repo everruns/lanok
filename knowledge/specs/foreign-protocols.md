@@ -69,22 +69,56 @@ This is the experiment paying for itself. Lanok will never serve MCP, but a
 protocol of ours could want a symmetric `ping`, and until MCP was written down
 here it could not have one.
 
-## What this does not show: wire identity
+## Wire identity, against the real implementation
 
-The declarations use `serde_json::Value` payloads and are never connected to a
-real MCP or ACP peer. They show that the **method surface** is expressible and
-nothing more.
+Declaring a method surface is a statement about the macro, not about the wire.
+The obvious way to find out whether lanok's MCP declaration is *correct* is to
+point it at an implementation that has never heard of lanok and let that
+implementation judge.
 
-Specifically, this experiment is no evidence that a lanok peer could talk to an
-existing MCP or ACP implementation. That would need payload types, and a
-byte-level check of at least: whether `params` may be omitted when empty,
-whether an error object carrying an unexpected `retryable` is tolerated,
-whether string ids are required anywhere, and whether either protocol rejects
-unknown fields. None of that has been looked at, because neither is a consumer
-and neither should become one.
+`experiments/foreign-protocols/tests/rmcp_interop.rs` does exactly that.
+`rmcp` is the official Rust MCP SDK from the modelcontextprotocol
+organisation. It is a dev-dependency of the experiment, it runs in CI, and it
+holds both ends of the contract: it owns the payload types and it decides what
+is acceptable on the wire.
 
-Wire identity **is** tested where it matters, for the protocols lanok actually
-serves: mira's adoption keeps its Python and TypeScript study SDKs, which are
+The two sides share one in-memory pipe, rmcp's transport on one end and
+lanok's ndjson transport on the other, with nothing translating between them.
+Every payload that crosses is an `rmcp::model` type serialised by rmcp's own
+derives, so a byte lanok gets wrong is a byte rmcp rejects.
+
+A full session passes:
+
+| Step | What it proves |
+|---|---|
+| `initialize` with `InitializeRequestParams` / `InitializeResult` | a protocol's own handshake payloads, through `Peer::handshake_with` |
+| `notifications/initialized` | the configurable handshake notification name |
+| `ping` | `Direction::Either`, answered by a real MCP implementation |
+| `tools/list`, `tools/call` | ordinary forward requests, gated on a capability the server advertised |
+| `elicitation/create` | the **reverse channel**: rmcp's server asks, lanok's `InitiatorHandler` answers, inside an outstanding request |
+| `notifications/progress` ×2 | an unsolicited inbound `either` notification arriving mid-request |
+
+The tool's answer is built from what lanok replied to the elicitation, so the
+assertion at the end (`"Vitayu, Kyiv!"`) can only hold if the reverse request
+and its response both crossed intact.
+
+A second test pins the local half: a method whose capability the server did not
+advertise is refused with `CAPABILITY_UNSUPPORTED` before anything is written,
+rather than making a round trip to be told `method not found`.
+
+### What this still does not license
+
+Lanok is **not** an MCP client and must not become one; `rmcp` is the answer
+for anyone who wants one. What the test shows is narrower and is the thing
+worth knowing: the peer, the transport, and the declaration are correct enough
+that a third-party implementation of a protocol lanok did not design holds a
+full session with them, reverse channel included.
+
+Untested still: ACP against `agent-client-protocol`, and anything about MCP's
+HTTP transports, which lanok does not have.
+
+Wire identity is separately tested for the protocols lanok actually serves:
+mira's adoption keeps its Python and TypeScript study SDKs, which are
 independent implementations that know nothing about lanok, and CI drives the
 Rust host against both.
 

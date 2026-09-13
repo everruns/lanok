@@ -62,7 +62,9 @@ crates/lanok-cli        the `lanok` binary: gen (SDK codegen), conform.
 crates/lanok            facade crate authors depend on; re-exports the rest.
 examples/echo           a two-direction protocol exercised end to end in CI.
 experiments/            YEP, ACP and MCP declared on lanok, to test whether the
-                        model describes protocols it did not come from. See
+                        model describes protocols it did not come from, plus an
+                        interop test that drives the MCP declaration against
+                        `rmcp`, the official SDK. See
                         knowledge/specs/foreign-protocols.md.
 sdks/                   Python and TypeScript runtimes the generated protocol
                         code sits on. See knowledge/specs/sdks.md.
@@ -95,7 +97,7 @@ the task touches. New code complies with them or proposes a change there.
 | [architecture](knowledge/specs/architecture.md) | Crate split, the symmetric peer, transports, why the seams sit where they do |
 | [protocol-contract](knowledge/specs/protocol-contract.md) | Versioning, capability negotiation, forward-compat rules every lanok protocol inherits |
 | [sdks](knowledge/specs/sdks.md) | Python and TypeScript runtimes, codegen, the drift guard |
-| [foreign-protocols](knowledge/specs/foreign-protocols.md) | Whether the model fits protocols it was not designed for, and MCP's known misfit |
+| [foreign-protocols](knowledge/specs/foreign-protocols.md) | Whether the model fits protocols it was not designed for, and the `rmcp` interop test |
 | [documentation](knowledge/specs/documentation.md) | Which surface owns which fact, and the committed-SVG diagram convention |
 | [release-process](knowledge/specs/release-process.md) | Versioning, crates.io publishing flow |
 
