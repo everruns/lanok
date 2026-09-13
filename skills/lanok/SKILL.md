@@ -128,9 +128,36 @@ Artifacts are committed and drift-guarded. Change a `protocol!` block, run
 - **`SimpleServer` must not pull tokio.** If a change makes the blocking path
   need a runtime, the change is wrong.
 
+## Python and TypeScript
+
+Both languages ship the same two shapes Rust does, and both can be either end
+of a connection.
+
+```python
+from lanok import Hello, Peer, Router, Server, connect_child, stdio
+
+Server("echo", "1.0").on_request("echo", lambda p: p).serve()        # serial
+
+peer = connect_child(["./srv"], Router(), serve_handshake=ours)      # drive one
+peer.handshake(ours); peer.request("echo", {"text": "hi"})
+
+Peer(router, serve_handshake=Hello("echo","1.0",["ui_ask"])).connect(stdio())  # reverse-capable
+```
+
+```ts
+import { Peer, Router, Server, connectChild, stdio } from "@lanok/rpc";
+```
+
+A reverse request needs `Peer`, not `Server`: a serial loop cannot wait for a
+reply while producing one. Handlers take `params` or `(peer, params)` in Python,
+`(params)` or `(params, peer)` in TypeScript.
+
+`just matrix` runs every client against every server, nine combinations.
+
 ## References
 
 - [`references/cookbook.md`](references/cookbook.md), recipes: reverse
   requests, progress, cancellation, timeouts, testing with `duplex()`.
 - [`references/wire.md`](references/wire.md), the contract: framing, versions,
   capabilities, error codes.
+- The repository's `docs/sdks.md` for the full Python and TypeScript guide.

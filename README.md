@@ -100,11 +100,15 @@ let result = peer.request("echo", serde_json::json!({ "text": "hi" })).await?;
 
 Python and TypeScript runtimes live in [`sdks/`](sdks/), so a protocol's
 non-Rust SDK is generated types on a shared peer loop rather than a hand-rolled
-JSON-RPC loop per protocol per language.
+JSON-RPC loop per protocol per language. Both languages ship the same two shapes
+Rust has, so either can be **either end** of a connection, reverse requests
+included. `just matrix` runs all nine client/server combinations across the
+three languages.
 
 ## Documentation
 
-- [docs/](docs/README.md), the public guides and wire reference.
+- [docs/](docs/README.md), the public guides: getting started, the `protocol!`
+  grammar, servers and peers, the wire, and Python and TypeScript.
 - [specs/](specs/), the design of record.
 - [CONTRIBUTING.md](CONTRIBUTING.md), how to build and what the merge gate is.
 

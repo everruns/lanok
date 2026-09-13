@@ -94,6 +94,12 @@ conform: build-ts-sdk
 build-ts-sdk:
     cd sdks/typescript && npm ci && npm run build
 
+# Every client against every server, across all three languages. Nine
+# combinations, each including a reverse request.
+matrix: build-ts-sdk
+    cargo build -q -p echo-protocol --bins
+    ./scripts/matrix.sh
+
 # Describe a protocol from its committed artifacts.
 describe:
     cargo run -q -p lanok-cli -- describe --schema examples/echo/schema/v1

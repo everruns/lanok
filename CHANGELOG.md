@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A symmetric `Peer` in the Python and TypeScript SDKs.** Both languages can
+  now be either end of a connection, reverse requests included, rather than
+  only responding. Python uses threads so `peer.request(...)` returns a value
+  in a plain script; TypeScript uses promises. Each ships transports to match:
+  this process's stdio, a spawned child with its stderr drained, and an
+  in-memory `duplex()` for tests.
+- `scripts/matrix.sh` and `just matrix`: every client against every server
+  across all three languages, nine combinations, each including a reverse
+  request. Runs in CI.
+- `docs/sdks.md`, the public guide to writing servers **and** clients in Python
+  and TypeScript.
+- `echo-client --server <cmd>` drives an arbitrary implementation, which is how
+  the Python and TypeScript servers are exercised against the Rust client.
+
+### Fixed
+
+- CI built only `echo-client` before running it, so the example died spawning
+  an unbuilt `echo-server`; and `npm ci` ran without a committed lockfile.
+
 ## [0.1.0] - 2026-09-13
 
 Initial release.

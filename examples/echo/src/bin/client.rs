@@ -13,12 +13,29 @@ use tokio::process::Command;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let blocking = std::env::args().any(|arg| arg == "--blocking");
+    let args: Vec<String> = std::env::args().collect();
+    let blocking = args.iter().any(|arg| arg == "--blocking");
 
-    let mut command = Command::new(server_binary()?);
-    if !blocking {
-        command.arg("--async");
-    }
+    // `--server <cmd> [args...]` drives an arbitrary implementation, which is
+    // how the Python and TypeScript servers are exercised against the same
+    // client. Without it, the Rust server next to this binary.
+    let mut command = match args.iter().position(|arg| arg == "--server") {
+        Some(at) => {
+            let rest = &args[at + 1..];
+            let (program, program_args) = rest.split_first().ok_or("--server needs a command")?;
+            let mut command = Command::new(program);
+            command.args(program_args);
+            command
+        }
+        None => {
+            let mut command = Command::new(server_binary()?);
+            if !blocking {
+                command.arg("--async");
+            }
+            command
+        }
+    };
+    let _ = &mut command;
     // Server logs go to stderr; only protocol JSON belongs on stdout.
     let transport = ChildTransport::spawn_logging(
         command,
@@ -67,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !blocking {
         assert!(
             server.capabilities.supports(capability::UI_ASK),
-            "the async server advertises the reverse capability"
+            "a concurrent server advertises the reverse capability"
         );
     }
 

@@ -1,7 +1,12 @@
 # @lanok/rpc
 
 Build JSON-RPC 2.0 protocols in TypeScript, on the same wire contract the Rust
-core implements.
+core implements. TypeScript can be **either end** of a connection.
+
+## A serial server
+
+One request at a time, no concurrency model to reason about. The right answer
+for a small tool server.
 
 ```ts
 import { Server } from "@lanok/rpc";
@@ -24,10 +29,49 @@ server.onRequest("work", (_params, context) => {
 });
 ```
 
+## Driving a server
+
+```ts
+import { Router, connectChild } from "@lanok/rpc";
+
+const ours = { name: "my-host", protocolVersion: "1.0", capabilities: ["ui_ask"] };
+const router = new Router().onRequest("ui/ask", () => ({ answer: "yes" }));
+
+const peer = connectChild(["./my-server"], router, { serveHandshake: ours });
+await peer.handshake(ours);
+console.log(await peer.request("echo", { text: "hi" }));
+await peer.close();
+```
+
+## A server that asks questions back
+
+A reverse request needs `Peer`, not `Server`: a serial loop cannot wait for a
+reply while it is busy producing one.
+
+```ts
+import { Peer, Router, stdio } from "@lanok/rpc";
+
+async function echo(params, peer) {
+  if (peer.supports("ui_ask")) {
+    const answer = await peer.request("ui/ask", { question: "shout?" });
+    // ...
+  }
+}
+
+const peer = new Peer(new Router().onRequest("echo", echo), {
+  serveHandshake: { name: "echo", protocolVersion: "1.0", capabilities: ["ui_ask"] },
+}).connect(stdio());
+await peer.closed();
+```
+
+## Generated types
+
 A protocol's own wire types are generated, never hand-written:
 
 ```bash
 lanok gen typescript --schema path/to/schema/v1 --out src/generatedMyproto.ts
 ```
+
+Full guide: [docs/sdks.md](https://github.com/everruns/lanok/blob/main/docs/sdks.md).
 
 Build and test: `npm test`.

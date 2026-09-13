@@ -35,22 +35,44 @@ Two mechanisms, and both must stay:
 
 1. **The test suites mirror each other case for case.** A divergence in framing
    shows up as a failure in one language and not the others.
-2. **One conformance suite runs against every implementation.** The same
-   vectors that check the Rust server check the Python and TypeScript ones, in
-   CI. This is what makes "first-class" a fact rather than a claim.
+2. **One conformance suite runs against every implementation**, and **every
+   client runs against every server**. The same vectors that check the Rust
+   server check the Python and TypeScript ones, and `scripts/matrix.sh` drives
+   all nine client/server combinations, each including a reverse request. A
+   language that could only serve, or only drive, would be missing a row or a
+   column. Both run in CI.
 
 When adding a rule to the wire, add it to all three suites in the same change.
 
+## Both shapes, in every language
+
+Each runtime ships the same pair Rust does:
+
+| | `Server` | `Peer` |
+|---|---|---|
+| concurrency | one request at a time | many, in both directions |
+| can send requests | no | yes |
+| reverse requests | no | yes |
+
+`Server` stays because it is the right answer for a small tool server: no
+concurrency model to learn, and nothing to get wrong. `Peer` exists because
+without it a language could only ever be one end of a connection, which
+contradicts the kit's organizing idea. A protocol declares direction per
+method; an SDK that can only respond turns that into a Rust-only feature.
+
+Python uses threads rather than asyncio: the audience writes plain scripts, and
+`peer.request(...)` returning a value is what that person expects. TypeScript
+uses promises, because it has no other option and needs none.
+
 ## What the runtimes deliberately do not have
 
-- **No client peer.** The SDKs serve; they do not drive. Hosts are Rust today,
-  and a half-finished client in two more languages is worse than none.
-- **No concurrency.** Both SDK servers are serial, matching `SimpleServer`.
-  This is stated in their READMEs rather than discovered, and it means neither
-  can serve a reverse request.
+- **No generated stubs.** `lanok gen` emits payload types, method names, and the
+  direction table, but calls go through `peer.request(method, params)` rather
+  than a generated `peer.echo(params)`. Rust gets typed stubs because its
+  compiler enforces role gating; in Python and TypeScript a generated stub would
+  be a thin wrapper that cannot enforce anything.
 
-Both are scope decisions, not oversights. Revisit them when there is a consumer,
-not before.
+Revisit when there is a consumer, not before.
 
 ## Type generation
 

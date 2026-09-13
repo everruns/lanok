@@ -6,7 +6,7 @@
 | [Declaring a protocol](declaring.md) | the `protocol!` grammar and what it generates |
 | [Servers and peers](servers.md) | choosing between `SimpleServer` and `Peer`, and reverse requests |
 | [The wire](wire.md) | the protocol contract: framing, versioning, capabilities, errors |
-| [SDKs](../sdks/README.md) | Python and TypeScript |
+| [Python and TypeScript](sdks.md) | writing servers and clients in either language |
 
 The design of record lives in [`specs/`](../specs/); these guides explain how to
 use what it decided.

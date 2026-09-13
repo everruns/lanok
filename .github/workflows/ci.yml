@@ -143,6 +143,12 @@ jobs:
             --vectors examples/echo/schema/v1/conformance.json \
             -- node examples/echo-typescript/server.mjs
 
+      # Every client against every server, across all three languages. A
+      # language that could only serve, or only drive, would be missing a row
+      # or a column here.
+      - name: Cross-language matrix
+        run: ./scripts/matrix.sh
+
   sdks:
     name: SDKs
     runs-on: ubuntu-latest
