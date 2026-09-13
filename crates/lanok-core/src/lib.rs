@@ -51,3 +51,7 @@ pub use error::{RpcError, codes};
 pub use id::{Id, IdAllocator};
 pub use message::{JSONRPC_VERSION, Malformed, Message};
 pub use version::{Incompatible, Negotiation, ParseVersionError, Version};
+
+/// Re-exported so downstream crates and generated code can name the payload
+/// type without taking their own serde_json dependency.
+pub use serde_json::Value;

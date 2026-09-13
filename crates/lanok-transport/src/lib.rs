@@ -50,10 +50,17 @@ pub use ndjson::{NdjsonTransport, StdioTransport, duplex};
 pub trait Transport: Send + std::fmt::Debug + 'static {
     /// The next message, or `None` at end of stream.
     ///
+    /// **Must be cancellation safe.** The peer drives `recv` inside a
+    /// `select!` against its outbound queue, so this future is dropped every
+    /// time a write wins the race. An implementation that loses buffered input
+    /// on drop will silently eat messages under load, which is close to
+    /// impossible to diagnose from the outside. Keep partial reads in the
+    /// transport, not in the future.
+    ///
     /// A line that is not a usable message is skipped rather than returned as
     /// an error: one peer writing garbage should not tear down a connection
-    /// that is otherwise healthy. Implementors report skips through their own
-    /// logging sink.
+    /// that is otherwise healthy. Implementors count skips and expose the
+    /// count.
     async fn recv(&mut self) -> Option<io::Result<Message>>;
 
     /// Write one message.
