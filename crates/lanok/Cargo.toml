@@ -1,0 +1,35 @@
+[package]
+name = "lanok"
+description = "A kit for building JSON-RPC 2.0 protocols over stdio, WebSocket, and streaming HTTP. One symmetric peer, one protocol declaration, generated schemas and SDKs."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../../README.md"
+
+[features]
+default = ["async", "macros"]
+# The symmetric peer and its transports.
+async = ["lanok-peer/async", "dep:lanok-transport", "dep:async-trait"]
+# The `protocol!` declaration macro.
+macros = ["dep:lanok-macros"]
+# JSON Schema derives on the wire types, for artifact generation.
+schema = ["lanok-core/schema", "lanok-peer/schema"]
+
+[dependencies]
+lanok-core.workspace = true
+lanok-peer.workspace = true
+lanok-transport = { workspace = true, optional = true }
+lanok-macros = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
+serde_json.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }

@@ -1,0 +1,140 @@
+//! The protocol vocabulary, as data.
+//!
+//! A `protocol!` declaration emits one of these. It is what `meta.json` is
+//! serialized from, what the SDK generators read, and what a `doctor`
+//! subcommand prints. Keeping it `&'static` means a protocol crate carries its
+//! own description with no runtime construction and no allocation.
+//!
+//! These types are `Serialize` only. They describe a protocol compiled into a
+//! binary, so they are written, never read: a tool that consumes `meta.json`
+//! parses the owned mirror in `lanok-schema` instead.
+//!
+//! Direction names who **sends** a method, not who is what. `Initiator` is the
+//! side that opens the connection and sends `initialize`; `Responder` is the
+//! side that answers it. A method declared `Responder` is a reverse request,
+//! which in lanok is an ordinary declaration rather than a special case.
+
+use serde::Serialize;
+
+use crate::Version;
+
+/// Which side sends a method.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Direction {
+    /// Sent by the side that opened the connection.
+    Initiator,
+    /// Sent by the side that answered. A reverse message.
+    Responder,
+}
+
+/// Whether a method expects a response.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MethodKind {
+    /// Carries an id and expects a response.
+    Request,
+    /// Fire and forget.
+    Notification,
+}
+
+/// One method in a protocol's vocabulary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+pub struct MethodMeta {
+    /// The name on the wire, e.g. `tool/call`.
+    pub name: &'static str,
+    pub direction: Direction,
+    pub kind: MethodKind,
+    /// The declaration's doc comment, so `meta.json` documents itself.
+    #[serde(skip_serializing_if = "str::is_empty")]
+    pub doc: &'static str,
+    /// The capability token this method needs, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires: Option<&'static str>,
+}
+
+/// A protocol's full vocabulary.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct ProtocolMeta {
+    pub name: &'static str,
+    pub version: Version,
+    /// The oldest peer version this build accepts.
+    pub min_version: Version,
+    pub methods: &'static [MethodMeta],
+    /// Every capability token the protocol defines.
+    pub capabilities: &'static [&'static str],
+}
+
+impl ProtocolMeta {
+    /// Look one method up by its wire name.
+    pub fn method(&self, name: &str) -> Option<&MethodMeta> {
+        self.methods.iter().find(|m| m.name == name)
+    }
+
+    /// The methods one side sends.
+    pub fn sent_by(&self, direction: Direction) -> impl Iterator<Item = &MethodMeta> {
+        self.methods
+            .iter()
+            .filter(move |m| m.direction == direction)
+    }
+
+    /// Whether the protocol declares any reverse message at all. A protocol
+    /// where this is false is using one direction of a bidirectional peer,
+    /// which is fine, and the answer is worth showing in a doctor report.
+    pub fn is_bidirectional(&self) -> bool {
+        self.sent_by(Direction::Responder).next().is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const META: ProtocolMeta = ProtocolMeta {
+        name: "demo",
+        version: Version::new(1, 1),
+        min_version: Version::new(1, 0),
+        methods: &[
+            MethodMeta {
+                name: "tool/call",
+                direction: Direction::Initiator,
+                kind: MethodKind::Request,
+                doc: "Invoke a tool.",
+                requires: Some("tools"),
+            },
+            MethodMeta {
+                name: "ui/ask",
+                direction: Direction::Responder,
+                kind: MethodKind::Request,
+                doc: "",
+                requires: None,
+            },
+        ],
+        capabilities: &["tools"],
+    };
+
+    #[test]
+    fn looks_methods_up_by_wire_name() {
+        assert_eq!(META.method("tool/call").unwrap().requires, Some("tools"));
+        assert!(META.method("nope").is_none());
+    }
+
+    #[test]
+    fn reports_each_direction() {
+        assert_eq!(META.sent_by(Direction::Initiator).count(), 1);
+        assert_eq!(META.sent_by(Direction::Responder).count(), 1);
+        assert!(META.is_bidirectional());
+    }
+
+    #[test]
+    fn serializes_for_meta_json() {
+        let value = serde_json::to_value(META).unwrap();
+        assert_eq!(value["version"], "1.1");
+        assert_eq!(value["methods"][0]["direction"], "initiator");
+        assert_eq!(value["methods"][0]["kind"], "request");
+        // An empty doc and an absent capability are omitted, so the artifact
+        // stays readable instead of full of nulls.
+        assert!(value["methods"][1].get("doc").is_none());
+        assert!(value["methods"][1].get("requires").is_none());
+    }
+}

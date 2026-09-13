@@ -1,0 +1,21 @@
+[package]
+name = "lanok-macros"
+description = "The `protocol!` declaration macro for the lanok protocol kit. Use it through the `lanok` facade crate."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn.workspace = true
+quote.workspace = true
+proc-macro2.workspace = true

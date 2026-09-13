@@ -44,12 +44,14 @@ mod capability;
 mod error;
 mod id;
 mod message;
+mod meta;
 mod version;
 
 pub use capability::Capabilities;
 pub use error::{RpcError, codes};
 pub use id::{Id, IdAllocator};
 pub use message::{JSONRPC_VERSION, Malformed, Message};
+pub use meta::{Direction, MethodKind, MethodMeta, ProtocolMeta};
 pub use version::{Incompatible, Negotiation, ParseVersionError, Version};
 
 /// Re-exported so downstream crates and generated code can name the payload

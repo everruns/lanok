@@ -26,7 +26,7 @@ lanok-core = { version = "0.1.0", path = "crates/lanok-core" }
 # The Transport trait and its adapters (stdio, child process, in-memory).
 lanok-transport = { version = "0.1.0", path = "crates/lanok-transport" }
 # The symmetric peer and the blocking SimpleServer.
-lanok-peer = { version = "0.1.0", path = "crates/lanok-peer" }
+lanok-peer = { version = "0.1.0", path = "crates/lanok-peer", default-features = false }
 # The `protocol!` declaration macro.
 lanok-macros = { version = "0.1.0", path = "crates/lanok-macros" }
 # JSON Schema + meta emission and the drift guard.

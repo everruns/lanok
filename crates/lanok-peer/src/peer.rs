@@ -56,6 +56,8 @@ struct Inner {
     cancel_method: Option<String>,
     info: Mutex<PeerInfo>,
     closed: AtomicBool,
+    /// What to answer `initialize` with, when this peer serves the handshake.
+    serves_handshake: Option<Hello>,
 }
 
 /// A live connection to another peer. Cheap to clone; clones share one
@@ -69,6 +71,7 @@ pub struct PeerBuilder {
     handler: Arc<dyn Handler>,
     request_timeout: Option<Duration>,
     cancel_method: Option<String>,
+    serves_handshake: Option<Hello>,
 }
 
 impl std::fmt::Debug for dyn Handler {
@@ -86,6 +89,7 @@ impl Default for PeerBuilder {
             // request, a build) that these protocols exist to carry.
             request_timeout: None,
             cancel_method: None,
+            serves_handshake: None,
         }
     }
 }
@@ -120,6 +124,19 @@ impl PeerBuilder {
         self
     }
 
+    /// Answer `initialize` with `ours`, rather than passing it to the handler.
+    ///
+    /// The peer, not the handler, owns the handshake, for the same reason
+    /// [`SimpleServer`](crate::SimpleServer) owns it: capability state lives on
+    /// the peer, so answering here is what makes [`Peer::supports`] true on the
+    /// responding side too. Without it a server could answer requests but never
+    /// learn what its caller can do, which is exactly what a reverse request
+    /// needs to know.
+    pub fn serve_handshake(mut self, ours: Hello) -> Self {
+        self.serves_handshake = Some(ours);
+        self
+    }
+
     /// Start serving over `transport`.
     pub fn connect(self, transport: impl Transport) -> Peer {
         let (outbound, outbound_rx) = mpsc::unbounded_channel();
@@ -131,6 +148,7 @@ impl PeerBuilder {
             cancel_method: self.cancel_method,
             info: Mutex::new(PeerInfo::default()),
             closed: AtomicBool::new(false),
+            serves_handshake: self.serves_handshake,
         }));
 
         // The pump holds a *weak* reference on purpose. A strong one would
@@ -405,6 +423,39 @@ enum Event {
 fn dispatch(message: Message, peer: &Peer, handler: &Arc<dyn Handler>) {
     match message {
         Message::Response { id, payload } => peer.complete(&id, payload),
+
+        // The handshake is answered by the peer when it is configured to serve
+        // one, so a protocol's handler trait only ever covers the protocol's
+        // own methods.
+        // Only when this peer was configured to serve one. A peer answering
+        // `initialize` from its own handler keeps doing so: intercepting
+        // unconditionally would quietly steal the method from it.
+        Message::Request { id, method, params }
+            if method == INITIALIZE && peer.0.serves_handshake.is_some() =>
+        {
+            let ours = peer
+                .0
+                .serves_handshake
+                .as_ref()
+                .expect("checked by the guard");
+            if let Ok(theirs) = serde_json::from_value::<Hello>(params) {
+                peer.set_peer_info(PeerInfo {
+                    name: theirs.name,
+                    version: Some(theirs.protocol_version),
+                    capabilities: theirs.capabilities,
+                });
+            }
+            peer.send_message(match serde_json::to_value(ours) {
+                Ok(value) => Message::result(id, value),
+                Err(e) => Message::error(
+                    id,
+                    RpcError::internal(format!("handshake is not serializable: {e}")),
+                ),
+            });
+        }
+        // Acknowledged by having been received. Nothing to route.
+        Message::Notification { method, .. } if method == INITIALIZED => {}
+
         Message::Notification { method, params } => handler.notification(method, params),
         Message::Request { id, method, params } => {
             // Each request gets its own task, so a slow handler never blocks the
