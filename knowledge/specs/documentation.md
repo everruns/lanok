@@ -69,6 +69,16 @@ Boxes-and-arrows diagrams are **hand-authored SVG, committed under
   is always the amber one: it is the thing worth seeing at a glance.
 - **Accessible.** Every embed carries `alt` text stating the relationship the
   diagram shows, not just its title.
-- **Named by subject.** `docs/assets/<topic>.svg`, embedded from the README by
-  absolute `raw.githubusercontent.com` URL (so it renders on crates.io and in
-  package registries) and from `docs/` by relative path.
+- **Named by subject.** `docs/assets/<topic>.svg`, embedded by **relative
+  path** from both the README and `docs/`.
+
+  Relative, not an absolute `raw.githubusercontent.com` URL, because this
+  repository is private: raw URLs 404 for anyone unauthenticated, and GitHub's
+  own image proxy is one of them, so an absolute embed renders as broken alt
+  text for every reader including signed-in ones. Relative paths resolve
+  against the repository and work for anyone who can see it.
+
+  The cost is that relative paths break on crates.io, which renders the README
+  outside the repository. Switching the README's embeds to absolute raw URLs is
+  therefore a step in [the release process](release-process.md), taken when the
+  repository is public and a crate is actually being published, not before.

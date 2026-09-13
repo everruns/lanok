@@ -17,10 +17,10 @@ writes is the part that is actually yours, the methods and their payloads.
 There is no client type and no server type. There is one **symmetric `Peer`**,
 and direction is a property declared on each *method*, not on the process.
 
-<img src="https://raw.githubusercontent.com/everruns/lanok/main/docs/assets/lanok-peer.svg" alt="Two peers over one connection: peer A sends echo and ping and answers ui/ask, while peer B sends ui/ask and answers echo and ping, so requests and responses flow in both directions at once" width="720" />
+<img src="docs/assets/lanok-peer.svg" alt="Two peers over one connection: peer A sends echo and ping and answers ui/ask, while peer B sends ui/ask and answers echo and ping, so requests and responses flow in both directions at once" width="720" />
 
-Both sides send. Both sides answer. Which methods go which way is declared, not
-built in:
+Both sides send. Both sides answer, over one connection, with each direction
+owning its own id space. Which methods go which way is declared, not built in:
 
 ```rust
 lanok::protocol! {

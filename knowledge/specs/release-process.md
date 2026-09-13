@@ -28,8 +28,14 @@ protocol built on lanok from its own 1.0.
 4. Bump `version` in `[workspace.package]`, in every
    `[workspace.dependencies]` entry for an internal crate, in
    `sdks/python/pyproject.toml`, and in `sdks/typescript/package.json`.
-5. `just publish-dry-run`.
-6. Tag `v<version>` and push. CI publishes.
+5. If this is the first publish after the repository becomes public, switch the
+   README's image embeds from relative paths to absolute
+   `https://raw.githubusercontent.com/everruns/lanok/main/...` URLs. crates.io
+   renders the README outside the repository, so relative paths break there.
+   Relative is correct until then: raw URLs 404 on a private repository, which
+   breaks the image for every reader including signed-in ones.
+6. `just publish-dry-run`.
+7. Tag `v<version>` and push. CI publishes.
 
 ## Why the dry run is one workspace invocation
 
