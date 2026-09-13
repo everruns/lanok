@@ -387,3 +387,42 @@ async fn ids_are_per_direction() {
     assert_eq!(result["nested"], "a answered");
     let _ = b;
 }
+
+#[tokio::test]
+async fn shutdown_ends_the_connection_and_waits_for_it() {
+    let server = Router::new().on_request("echo", |params| async move { Ok(params) });
+    let (client, _server) = pair(Router::new(), server);
+
+    assert!(client.request("echo", json!({})).await.is_ok());
+
+    // Returns only once the pump has released the transport, which is what a
+    // caller reaping a child process or rebinding a socket depends on.
+    client.shutdown().await;
+
+    assert!(client.is_closed());
+    let err = client.request("echo", json!({})).await.unwrap_err();
+    assert_eq!(err.code, codes::TRANSPORT_CLOSED);
+
+    // Idempotent: a second call is a no-op rather than a hang or a panic.
+    client.shutdown().await;
+}
+
+#[tokio::test]
+async fn shutdown_fails_requests_other_handles_are_waiting_on() {
+    // A clone still in flight must learn the connection is gone, not hang
+    // until its own timeout.
+    let never = Router::new().on_request("hang", |_| async move {
+        std::future::pending::<()>().await;
+        Ok(Value::Null)
+    });
+    let (client, _server) = pair(Router::new(), never);
+
+    let waiter = client.clone();
+    let pending = tokio::spawn(async move { waiter.request("hang", json!({})).await });
+    tokio::time::sleep(Duration::from_millis(20)).await;
+
+    client.shutdown().await;
+
+    let err = pending.await.unwrap().unwrap_err();
+    assert_eq!(err.code, codes::TRANSPORT_CLOSED);
+}

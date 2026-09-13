@@ -30,7 +30,7 @@ use std::time::Duration;
 
 use lanok_core::{Capabilities, Id, IdAllocator, Message, RpcError, Value, Version};
 use lanok_transport::Transport;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{Notify, mpsc, oneshot};
 
 use crate::handler::{Handler, NoHandler};
 use crate::handshake::{Hello, INITIALIZE, INITIALIZED};
@@ -89,6 +89,17 @@ struct Inner {
     /// `notifications/initialized`, not `initialized`.
     handshake_method: String,
     initialized_method: String,
+    /// Raised by [`Peer::shutdown`]. The pump selects on it, so a local
+    /// shutdown does not depend on every handle being dropped first.
+    ///
+    /// Shared with the pump by `Arc` rather than reached through the peer:
+    /// the pump must not hold anything strong across its select, or the
+    /// outbound sender it would keep alive would stop the last handle's drop
+    /// from ever closing the connection.
+    stop: Arc<Notify>,
+    /// The pump task, so `shutdown` can await the transport's release rather
+    /// than return before the child process is reaped.
+    pump: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl std::fmt::Debug for Inner {
@@ -238,6 +249,7 @@ impl PeerBuilder {
     /// Start serving over `transport`.
     pub fn connect(self, transport: impl Transport) -> Peer {
         let (outbound, outbound_rx) = mpsc::unbounded_channel();
+        let stop = Arc::new(Notify::new());
         let peer = Peer(Arc::new(Inner {
             outbound,
             pending: Mutex::new(Some(Pending::new())),
@@ -249,18 +261,22 @@ impl PeerBuilder {
             serves_handshake: self.serves_handshake,
             handshake_method: self.handshake_method,
             initialized_method: self.initialized_method,
+            stop: stop.clone(),
+            pump: Mutex::new(None),
         }));
 
         // The pump holds a *weak* reference on purpose. A strong one would
         // keep the outbound channel's sender count above zero forever, so
         // dropping the last Peer handle would never close the connection and
         // the task would outlive everything that could use it.
-        tokio::spawn(pump(
+        let task = tokio::spawn(pump(
             Box::new(transport),
             outbound_rx,
             Arc::downgrade(&peer.0),
             self.handler,
+            stop,
         ));
+        *peer.0.pump.lock().expect("pump lock") = Some(task);
         peer
     }
 }
@@ -457,6 +473,30 @@ impl Peer {
         }
     }
 
+    /// End the connection and wait for the transport to be released.
+    ///
+    /// Dropping every handle also ends a connection, but says nothing about
+    /// *when*: the pump notices asynchronously, and `close` on a child-process
+    /// transport is what shuts stdin, waits out the exit grace, and drains
+    /// stderr. A caller that needs the child reaped before it returns, or the
+    /// socket closed before it rebinds, has no way to observe any of that from
+    /// a drop. This does: it signals the pump and awaits it.
+    ///
+    /// Idempotent, and safe to call with other handles still alive: they see a
+    /// closed connection and fail their requests with
+    /// [`RpcError::transport_closed`]. Calling it from inside a handler would
+    /// deadlock (the pump would be waiting on the handler), so don't.
+    pub async fn shutdown(&self) {
+        self.0.stop.notify_one();
+        let task = self.0.pump.lock().expect("pump lock").take();
+        if let Some(task) = task {
+            let _ = task.await;
+        }
+        // A handle is alive by definition (`self`), so the pump's own
+        // `fail_all_pending` may have been skipped on the way out.
+        self.fail_all_pending(RpcError::transport_closed());
+    }
+
     fn send_message(&self, message: Message) {
         let _ = self.0.outbound.send(message);
     }
@@ -533,6 +573,7 @@ async fn pump(
     mut outbound: mpsc::UnboundedReceiver<Message>,
     peer: Weak<Inner>,
     handler: Arc<dyn Handler>,
+    stop: Arc<Notify>,
 ) {
     loop {
         // Nothing strong is held across this await, so the moment the last
@@ -543,6 +584,7 @@ async fn pump(
         let event = tokio::select! {
             incoming = transport.recv() => Event::Inbound(incoming),
             queued = outbound.recv() => Event::Outbound(queued),
+            _ = stop.notified() => Event::Stop,
         };
 
         // Every handle is gone: nobody can send, and nobody is waiting.
@@ -550,6 +592,7 @@ async fn pump(
         let live = Peer(inner);
 
         match event {
+            Event::Stop => break,
             Event::Inbound(None) | Event::Inbound(Some(Err(_))) => break,
             Event::Inbound(Some(Ok(message))) => dispatch(message, &live, &handler),
             Event::Outbound(None) => break,
@@ -572,6 +615,8 @@ async fn pump(
 enum Event {
     Inbound(Option<std::io::Result<Message>>),
     Outbound(Option<Message>),
+    /// [`Peer::shutdown`] was called.
+    Stop,
 }
 
 fn dispatch(message: Message, peer: &Peer, handler: &Arc<dyn Handler>) {

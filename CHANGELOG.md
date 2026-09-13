@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`Peer::shutdown`**, which ends a connection and waits for it. Dropping
+  every handle also ends one, but says nothing about *when*, and `close` on a
+  child-process transport is what shuts stdin, waits out the exit grace and
+  drains stderr. A caller that needs the child reaped before it returns could
+  not observe any of that from a drop: `closed()` only ever fired on the
+  remote's EOF, because the local close it was meant to observe requires the
+  last handle to be gone, and then there is nobody left to await it. Found
+  migrating mira's host, whose `shutdown()` awaits the study's exit.
+
 - **Documented capability tokens.** `capabilities { ... }` accepts a doc
   comment per token, and the declaration's prose becomes the generated const's
   doc rather than a generated one-liner. A capability token is a promise about
