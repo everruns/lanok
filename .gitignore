@@ -1,0 +1,15 @@
+/target
+**/*.rs.bk
+Cargo.lock.bak
+*.profraw
+
+# SDK build output and caches.
+/sdks/typescript/dist/
+/sdks/typescript/node_modules/
+/sdks/python/**/__pycache__/
+/sdks/python/.pytest_cache/
+
+.DS_Store
+
+# Local Claude Code settings (per-developer)
+.claude/settings.local.json

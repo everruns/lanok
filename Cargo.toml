@@ -1,0 +1,64 @@
+# Lanok — a kit for building JSON-RPC 2.0 protocols over stdio and, later, over
+# WebSocket and streaming HTTP. Part of the Everruns ecosystem. See specs/ for
+# design decisions and docs/ for the public reference.
+
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+authors = ["Mykhailo Chalyi <mike@chaliy.name>", "Everruns"]
+repository = "https://github.com/everruns/lanok"
+homepage = "https://everruns.com"
+documentation = "https://docs.rs/lanok"
+keywords = ["jsonrpc", "protocol", "stdio", "rpc", "everruns"]
+categories = ["network-programming", "development-tools"]
+
+[workspace.dependencies]
+# The facade crate authors depend on; re-exports core, transport, peer, macros.
+lanok = { version = "0.1.0", path = "crates/lanok" }
+# Wire types only: envelopes, ids, errors, version negotiation. No I/O, no async.
+lanok-core = { version = "0.1.0", path = "crates/lanok-core" }
+# The Transport trait and its adapters (stdio, child process, in-memory).
+lanok-transport = { version = "0.1.0", path = "crates/lanok-transport" }
+# The symmetric peer and the blocking SimpleServer.
+lanok-peer = { version = "0.1.0", path = "crates/lanok-peer" }
+# The `protocol!` declaration macro.
+lanok-macros = { version = "0.1.0", path = "crates/lanok-macros" }
+# JSON Schema + meta emission and the drift guard.
+lanok-schema = { version = "0.1.0", path = "crates/lanok-schema" }
+# Optional clap helpers: transport flags and builtin subcommands.
+lanok-clap = { version = "0.1.0", path = "crates/lanok-clap" }
+
+# Serialization. The wire is JSON, so serde is the one dependency the core takes.
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+# JSON Schema generation, behind the optional `schema` feature only.
+schemars = "1"
+
+# Async runtime. lanok-core stays runtime-free; transport and peer pull what
+# they need, and the blocking SimpleServer pulls none of it.
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "process", "rt", "rt-multi-thread", "sync", "time"] }
+async-trait = "0.1"
+futures-core = "0.3"
+
+# CLI.
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+
+# Proc-macro toolchain (lanok-macros).
+syn = { version = "2", features = ["full", "extra-traits"] }
+quote = "1"
+proc-macro2 = "1"
+
+# Testing.
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
