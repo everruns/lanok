@@ -39,21 +39,39 @@ pub mod codes {
     pub const TRANSPORT_CLOSED: i64 = -32804;
 }
 
-/// A JSON-RPC 2.0 error object.
+/// A structured, JSON-RPC 2.0 error object.
 ///
-/// Parses leniently: a peer that sends a bare `{"message": "..."}` still
-/// deserializes, with `code` defaulting to [`codes::INTERNAL_ERROR`].
+/// This is the failure of the *RPC itself*: bad params, an unknown method, a
+/// crash on the far side, an upstream outage surfaced at the transport. A
+/// protocol that also models domain failures should keep those in its own
+/// payloads, because `code` and `retryable` exist so a caller can classify and
+/// retry **without parsing the human `message`**.
+///
+/// Every field beyond `message` is optional and defaulted, so a peer that sends
+/// a bare `{"message": "…"}` still parses.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub struct RpcError {
+    /// Numeric class of the failure; see [`codes`]. Defaults to
+    /// [`codes::INTERNAL_ERROR`] when a peer omits it, because an error that
+    /// declines to classify itself is an unexplained failure, and `0` is not a
+    /// JSON-RPC code.
     #[serde(default = "default_code")]
+    #[cfg_attr(feature = "schema", schemars(default = "default_code"))]
     pub code: i64,
+    /// Human-readable description. The only required field.
     pub message: String,
-    /// Whether the sender hinted this failure is worth retrying: a rate limit,
-    /// an overloaded upstream. Omitted from the wire when false, so an error
-    /// that never sets it looks exactly as it did before the field existed.
+    /// Hint that retrying the identical request may succeed: a *transient*
+    /// fault such as a rate limit, an overloaded upstream, or a timeout, not
+    /// the caller's mistake.
+    ///
+    /// Omitted from the wire when false, so an error that never sets it looks
+    /// exactly as it did before the field existed, and an unknown failure is
+    /// never retried blindly.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub retryable: bool,
+    /// Optional structured payload for programmatic handling (JSON-RPC `data`).
+    /// Omitted from the wire when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
 }
