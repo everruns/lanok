@@ -1,0 +1,33 @@
+[package]
+name = "lanok-peer"
+description = "The symmetric JSON-RPC peer and the blocking SimpleServer for the lanok protocol kit."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+default = ["async"]
+# The async symmetric peer. Off means SimpleServer only, which is what an
+# extension author writing a small tool server wants: no runtime in the graph.
+async = ["dep:tokio", "dep:async-trait", "dep:lanok-transport"]
+# JSON Schema derives on the shared handshake payload.
+schema = ["lanok-core/schema", "dep:schemars"]
+
+[dependencies]
+lanok-core.workspace = true
+lanok-transport = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, optional = true }
+async-trait = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
