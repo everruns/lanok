@@ -1,0 +1,24 @@
+[package]
+name = "lanok-core"
+description = "JSON-RPC 2.0 wire types, version negotiation, and capability tokens. The dependency-light core of the lanok protocol kit."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+default = []
+# JSON Schema derives on the wire types. Off by default so a protocol crate can
+# depend on the core without pulling schemars into every downstream build.
+schema = ["dep:schemars"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+schemars = { workspace = true, optional = true }
