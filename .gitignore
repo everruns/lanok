@@ -15,3 +15,5 @@ Cargo.lock.bak
 
 # Local Claude Code settings (per-developer)
 .claude/settings.local.json
+# The skill's one home is skills/lanok/; this is where ./skills.sh installs it.
+.claude/skills/
