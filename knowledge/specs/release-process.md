@@ -1,3 +1,9 @@
+---
+type: Process Specification
+title: Release Process Specification
+description: Defines lanok's versioning scheme and the steps for publishing crates and SDK packages.
+---
+
 # Release process
 
 ## Versioning

@@ -1,7 +1,7 @@
 //! `MAJOR.MINOR` version negotiation.
 //!
 //! The contract every lanok protocol inherits (see
-//! `specs/protocol-contract.md`):
+//! `knowledge/specs/protocol-contract.md`):
 //!
 //! * The **major** changes only on a breaking wire change. Different majors
 //!   cannot talk.

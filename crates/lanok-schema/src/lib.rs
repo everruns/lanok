@@ -15,9 +15,14 @@
 //! # use lanok_schema::Artifacts;
 //! fn main() -> std::io::Result<()> {
 //!     Artifacts::new(concat!(env!("CARGO_MANIFEST_DIR"), "/schema/v1"))
-//!         .run_cli(&my_protocol::schema_document(), "just schema")
+//!         .run_cli(&my_protocol::schema_document())
 //! }
 //! ```
+//!
+//! A drift failure tells the reader how to regenerate, and the command is
+//! derived from this binary's own name, so it is right without being
+//! configured. Projects with a shorter way in say so:
+//! `.regenerate_with("just schema")`.
 //!
 //! Reach it through the facade as `lanok::schema::Artifacts`, so a protocol
 //! crate has one dependency rather than two to keep version-matched.

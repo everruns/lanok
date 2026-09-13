@@ -26,11 +26,12 @@ tree, and keeping it that way is a design constraint rather than an accident.
   lines of handler should not compile an async runtime.
 - **The wire is forward-compatible by construction.** Payloads never
   `deny_unknown_fields`; additions are `#[serde(default)]` and bump the minor.
-  See [specs/protocol-contract.md](specs/protocol-contract.md).
+  See [knowledge/specs/protocol-contract.md](knowledge/specs/protocol-contract.md).
 - **Artifacts stay in lockstep.** Change a `protocol!` block, run `just schema`,
   commit the regenerated `schema.json` and `meta.json`. CI fails on drift.
 - **Docs in sync.** User-facing changes update `docs/`; design changes update
-  `specs/`.
+  the [`knowledge/`](knowledge/index.md) bundle, and significant ones add an
+  entry to [`knowledge/log.md`](knowledge/log.md).
 - **Conventional commits.** e.g. `feat(peer): add request timeout`,
   `fix(transport): drain child stderr on close`.
 - **No em-dashes** in prose, commits, or PR bodies. A comma, colon, or separate
@@ -44,7 +45,8 @@ tree, and keeping it that way is a design constraint rather than an accident.
 4. Open the PR with a clear description of the change and its motivation.
 
 See [AGENTS.md](AGENTS.md) for the architecture notes and the full checklist,
-and [specs/release-process.md](specs/release-process.md) for how releases ship.
+and [knowledge/specs/release-process.md](knowledge/specs/release-process.md) for
+how releases ship.
 
 ## Branch protection (the merge gate)
 

@@ -43,11 +43,44 @@ impl std::error::Error for Drift {}
 #[derive(Debug, Clone)]
 pub struct Artifacts {
     dir: PathBuf,
+    regenerate_with: Option<String>,
 }
 
 impl Artifacts {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
-        Artifacts { dir: dir.into() }
+        Artifacts {
+            dir: dir.into(),
+            regenerate_with: None,
+        }
+    }
+
+    /// Override the command a drift failure tells the reader to run.
+    ///
+    /// The default is derived from this binary's own name, which is correct
+    /// for anyone who has not aliased it. Set this only when your project has a
+    /// shorter way in, such as a `just` recipe or an npm script: a failure
+    /// naming a command the reader does not have is worse than one naming the
+    /// long form.
+    pub fn regenerate_with(mut self, command: impl Into<String>) -> Self {
+        self.regenerate_with = Some(command.into());
+        self
+    }
+
+    /// What a drift failure tells the reader to run.
+    ///
+    /// Derived from argv[0] rather than hardcoded, so the message is right in
+    /// any project without that project configuring anything.
+    fn regenerate_hint(&self) -> String {
+        if let Some(command) = &self.regenerate_with {
+            return command.clone();
+        }
+        std::env::args()
+            .next()
+            .as_deref()
+            .map(Path::new)
+            .and_then(Path::file_stem)
+            .map(|name| format!("cargo run --bin {}", name.to_string_lossy()))
+            .unwrap_or_else(|| "this protocol's schema generator".to_string())
     }
 
     pub fn schema_path(&self) -> PathBuf {
@@ -103,10 +136,11 @@ impl Artifacts {
     /// drift and exit non-zero.
     ///
     /// Every protocol crate needs this same eight lines of binary, so it lives
-    /// here once. `regenerate_with` is the command a failure tells the reader
-    /// to run, which is the difference between a useful CI failure and a
-    /// puzzle.
-    pub fn run_cli(&self, document: &Document, regenerate_with: &str) -> io::Result<()> {
+    /// here once. A drift failure names the command to run, which is the
+    /// difference between a useful CI failure and a puzzle; see
+    /// [`Artifacts::regenerate_with`] for where that command comes from.
+    pub fn run_cli(&self, document: &Document) -> io::Result<()> {
+        let regenerate_with = self.regenerate_hint();
         let check = std::env::args().any(|arg| arg == "--check");
         if check {
             let drift = self.drift(document);

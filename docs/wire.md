@@ -2,7 +2,7 @@
 
 What goes over the connection, and the compatibility rules your protocol
 inherits by building on lanok. The normative version is
-[`specs/protocol-contract.md`](../specs/protocol-contract.md); this is the
+[`knowledge/specs/protocol-contract.md`](../knowledge/specs/protocol-contract.md); this is the
 readable one.
 
 ## One message per line

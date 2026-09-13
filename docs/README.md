@@ -8,5 +8,5 @@
 | [The wire](wire.md) | the protocol contract: framing, versioning, capabilities, errors |
 | [Python and TypeScript](sdks.md) | writing servers and clients in either language |
 
-The design of record lives in [`specs/`](../specs/); these guides explain how to
-use what it decided.
+The design of record lives in the [`knowledge/`](../knowledge/index.md) OKF
+bundle; these guides explain how to use what it decided.

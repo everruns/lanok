@@ -40,6 +40,14 @@ jobs:
         env:
           RUSTDOCFLAGS: "-D warnings"
 
+      # The knowledge bundle is OKF; every concept needs typed frontmatter and
+      # every intra-bundle link has to resolve. The validator is a shared
+      # standard-library script, so its own tests run here too.
+      - name: Knowledge bundle is valid OKF
+        run: |
+          python3 scripts/validate_okf.py knowledge --check-links
+          python3 scripts/test_validate_okf.py
+
   audit:
     name: Audit
     runs-on: ubuntu-latest

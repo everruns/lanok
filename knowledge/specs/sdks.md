@@ -1,3 +1,9 @@
+---
+type: Architecture Specification
+title: SDK Specification
+description: Defines how the Python and TypeScript runtimes are split between hand-written and generated code, and how parity is enforced.
+---
+
 # SDKs
 
 The design of record for non-Rust implementations.

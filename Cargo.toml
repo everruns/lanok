@@ -1,5 +1,5 @@
 # Lanok: a kit for building JSON-RPC 2.0 protocols over stdio and, later, over
-# WebSocket and streaming HTTP. Part of the Everruns ecosystem. See specs/ for
+# WebSocket and streaming HTTP. Part of the Everruns ecosystem. See knowledge/ for
 # design decisions and docs/ for the public reference.
 
 [workspace]

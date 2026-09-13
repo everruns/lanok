@@ -1,3 +1,9 @@
+---
+type: Architecture Specification
+title: Lanok Architecture Specification
+description: Defines the crate split, the symmetric peer, and why each seam in lanok sits where it does.
+---
+
 # Architecture
 
 The design of record for how lanok is put together, and why each seam sits

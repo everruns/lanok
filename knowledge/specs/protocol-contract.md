@@ -1,3 +1,9 @@
+---
+type: Policy
+title: Protocol Contract Specification
+description: Defines the framing, versioning, capability, and forward-compatibility rules every protocol built on lanok inherits.
+---
+
 # The protocol contract
 
 Every protocol built on lanok inherits these rules. They are what let two

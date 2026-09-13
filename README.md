@@ -109,7 +109,8 @@ three languages.
 
 - [docs/](docs/README.md), the public guides: getting started, the `protocol!`
   grammar, servers and peers, the wire, and Python and TypeScript.
-- [specs/](specs/), the design of record.
+- [knowledge/](knowledge/index.md), the OKF bundle: architecture, contracts,
+  and process, the design of record.
 - [CONTRIBUTING.md](CONTRIBUTING.md), how to build and what the merge gate is.
 
 ## License

@@ -4,7 +4,7 @@
 
 Telegraph. Drop filler/grammar. Min tokens.
 
-Prose in this repository, `specs/`, `docs/`, commit messages, and PR bodies
+Prose in this repository, `knowledge/`, `docs/`, commit messages, and PR bodies
 alike, uses no em-dashes: a comma, colon, or separate sentence says the same
 thing without the AI tell.
 
@@ -22,7 +22,7 @@ stop and ask.
 - Code testable, smoke-testable, runnable locally.
 - Small, incremental, PR-sized changes.
 - No backward-compat needed pre-1.0 (internal code). The *wire* is the
-  exception: the compatibility contract in `specs/protocol-contract.md` binds
+  exception: the compatibility contract in `knowledge/specs/protocol-contract.md` binds
   every protocol built on lanok from its own 1.0, so lanok's own pre-1.0 status
   never licenses breaking a downstream wire.
 - Write a failing test before fixing a bug.
@@ -62,7 +62,7 @@ crates/lanok-cli        the `lanok` binary: gen (SDK codegen), conform.
 crates/lanok            facade crate authors depend on; re-exports the rest.
 examples/echo           a two-direction protocol exercised end to end in CI.
 sdks/                   Python and TypeScript runtimes the generated protocol
-                        code sits on. See specs/sdks.md.
+                        code sits on. See knowledge/specs/sdks.md.
 ```
 
 ### Gotchas
@@ -81,17 +81,23 @@ sdks/                   Python and TypeScript runtimes the generated protocol
 - Generated artifacts (`schema/`, SDK wire types) are committed and drift
   guarded. Change the protocol, run `just schema`, commit both.
 
-### Specs
+### Knowledge
 
-`specs/` holds the design of record. New code complies with these or proposes a
-change there.
+[`knowledge/`](knowledge/index.md) is this repository's Open Knowledge Format
+bundle and the design of record. Read the index first, then only the concepts
+the task touches. New code complies with them or proposes a change there.
 
-| Spec | Description |
-|------|-------------|
-| architecture | Crate split, the symmetric peer, transports, why the seams sit where they do |
-| protocol-contract | Versioning, capability negotiation, forward-compat rules every lanok protocol inherits |
-| sdks | Python and TypeScript runtimes, codegen, the drift guard |
-| release-process | Versioning, crates.io publishing flow |
+| Concept | Description |
+|---------|-------------|
+| [architecture](knowledge/specs/architecture.md) | Crate split, the symmetric peer, transports, why the seams sit where they do |
+| [protocol-contract](knowledge/specs/protocol-contract.md) | Versioning, capability negotiation, forward-compat rules every lanok protocol inherits |
+| [sdks](knowledge/specs/sdks.md) | Python and TypeScript runtimes, codegen, the drift guard |
+| [release-process](knowledge/specs/release-process.md) | Versioning, crates.io publishing flow |
+
+When a change alters durable architecture, policy, or process, update the
+affected concept in the same change, and add an entry to
+[`knowledge/log.md`](knowledge/log.md) for a significant one. Transient plans
+and source-level detail stay out of the bundle.
 
 ### Local dev
 
@@ -102,6 +108,7 @@ just test       # cargo test --workspace
 just check      # fmt --check + clippy -D warnings + test + schema drift
 just pre-pr     # check
 just example    # drive the echo example end to end over a real child process
+just knowledge  # OKF conformance + intra-bundle links (when knowledge/ changed)
 ```
 
 ### Documentation
@@ -114,7 +121,7 @@ just example    # drive the echo example end to end over a real child process
 ### Git and commits
 
 - Conventional Commits: `type(scope): description`. Types: `feat`, `fix`,
-  `docs`, `refactor`, `test`, `chore`. Use `chore` for `specs/`, `AGENTS.md`, or
+  `docs`, `refactor`, `test`, `chore`. Use `chore` for `knowledge/`, `AGENTS.md`, or
   CI metadata.
 - **Never add Claude/session/AI attribution** in commits, PRs, docs, or code
   comments (no `Co-Authored-By: Claude`, no "Generated with Claude Code").

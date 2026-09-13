@@ -23,10 +23,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `echo-client --server <cmd>` drives an arbitrary implementation, which is how
   the Python and TypeScript servers are exercised against the Rust client.
 
+### Changed
+
+- `Artifacts::run_cli` no longer takes a regenerate-command string. The command
+  a drift failure tells the reader to run is derived from the generator
+  binary's own name, so it is correct in any project without being configured.
+  Projects with a shorter way in opt into it with
+  `.regenerate_with("just schema")`. The old signature hardcoded lanok's own
+  justfile recipe into every user's failure message.
+- `specs/` is now the [`knowledge/`](knowledge/index.md) Open Knowledge Format
+  bundle, matching the sibling Everruns repositories: typed frontmatter on
+  every concept, a reserved `index.md` and `log.md`, and CI validation of
+  conformance and intra-bundle links.
+
 ### Fixed
 
 - CI built only `echo-client` before running it, so the example died spawning
   an unbuilt `echo-server`; and `npm ci` ran without a committed lockfile.
+- The getting-started guide showed a schema generator's `fn main` with none of
+  the plumbing around it: no feature, no `[[bin]]`, no `JsonSchema` derives, and
+  no command to run it.
 
 ## [0.1.0] - 2026-09-13
 

@@ -33,9 +33,15 @@ check:
     cargo fmt --all -- --check
     cargo clippy --all-targets --all-features -- -D warnings
     cargo test --workspace --all-features
+    just knowledge
     # The committed artifacts under examples/echo/schema/ must match the
     # protocol declaration; regenerate with `just schema`.
     cargo run -q -p echo-protocol --bin echo-schema-gen -- --check
+
+# OKF conformance for the knowledge bundle, plus intra-bundle link resolution.
+knowledge:
+    python3 scripts/validate_okf.py knowledge --check-links
+    python3 scripts/test_validate_okf.py
 
 # Regenerate the echo example's committed schema.json + meta.json. Run after
 # changing its `protocol!` block.
