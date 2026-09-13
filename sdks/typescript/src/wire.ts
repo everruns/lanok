@@ -29,6 +29,7 @@ export type Id = number | string;
 export interface WireError {
   code: number;
   message: string;
+  retryable?: boolean;
   data?: unknown;
 }
 
@@ -39,34 +40,35 @@ export interface WireError {
 export class RpcError extends Error {
   readonly code: number;
   data: unknown;
+  isRetryable: boolean;
 
-  constructor(message: string, code: number = codes.internalError, data?: unknown) {
+  constructor(
+    message: string,
+    code: number = codes.internalError,
+    data?: unknown,
+    retryable = false,
+  ) {
     super(message);
     this.name = "RpcError";
     this.code = code;
     this.data = data;
+    this.isRetryable = retryable;
   }
 
   /**
-   * Hint that the failure is worth retrying. Carried inside `data` rather than
-   * beside `code`, because JSON-RPC enumerates the members of an error object.
+   * Hint that the failure is worth retrying: a rate limit, an overloaded
+   * upstream, anything where the same call may succeed later.
    */
   retryable(): this {
-    if (typeof this.data !== "object" || this.data === null) this.data = {};
-    (this.data as Record<string, unknown>).retryable = true;
+    this.isRetryable = true;
     return this;
-  }
-
-  get isRetryable(): boolean {
-    return (
-      typeof this.data === "object" &&
-      this.data !== null &&
-      (this.data as Record<string, unknown>).retryable === true
-    );
   }
 
   toWire(): WireError {
     const wire: WireError = { code: this.code, message: this.message };
+    // Omitted when false, so an error that never sets it looks exactly as it
+    // did before the field existed.
+    if (this.isRetryable) wire.retryable = true;
     if (this.data !== undefined) wire.data = this.data;
     return wire;
   }
@@ -117,6 +119,7 @@ export function classify(line: string): Message {
             String(e.message ?? ""),
             typeof e.code === "number" ? e.code : codes.internalError,
             e.data,
+            e.retryable === true,
           ),
         };
       }

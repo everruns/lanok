@@ -1,10 +1,13 @@
 //! The JSON-RPC error object, plus the codes lanok protocols share.
 //!
-//! One deliberate choice: the `retryable` hint rides inside `data`, not as a
-//! sibling of `code` and `message`. JSON-RPC 2.0 enumerates the members of an
-//! error object, so an extra top-level field is the kind of small deviation
-//! that makes a wire "JSON-RPC shaped" instead of JSON-RPC. Keeping it in
-//! `data` costs one accessor and buys strict conformance.
+//! `retryable` is a top-level field, beside `code` and `message`. It rode
+//! inside `data` first, on the argument that JSON-RPC 2.0 enumerates the
+//! members of an error object. That argument does not survive contact: the spec
+//! says the error member *must* contain `code` and `message` and *may* contain
+//! `data`, and nowhere forbids more. Both protocols this kit exists to serve
+//! already put the flag at the top level, so burying it bought strict-looking
+//! conformance at the price of a wire break for every consumer. Two out of two
+//! is not a sample size worth overruling.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -36,9 +39,6 @@ pub mod codes {
     pub const TRANSPORT_CLOSED: i64 = -32804;
 }
 
-/// The key `retryable` occupies inside `data`.
-const RETRYABLE_KEY: &str = "retryable";
-
 /// A JSON-RPC 2.0 error object.
 ///
 /// Parses leniently: a peer that sends a bare `{"message": "..."}` still
@@ -49,6 +49,11 @@ pub struct RpcError {
     #[serde(default = "default_code")]
     pub code: i64,
     pub message: String,
+    /// Whether the sender hinted this failure is worth retrying: a rate limit,
+    /// an overloaded upstream. Omitted from the wire when false, so an error
+    /// that never sets it looks exactly as it did before the field existed.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub retryable: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>,
 }
@@ -63,6 +68,7 @@ impl RpcError {
         RpcError {
             code,
             message: message.into(),
+            retryable: false,
             data: None,
         }
     }
@@ -115,25 +121,19 @@ impl RpcError {
         self
     }
 
-    /// Mark the failure as worth retrying (a rate limit, an overloaded
-    /// upstream). Stored inside `data` so the error object stays conformant.
+    /// Mark the failure as worth retrying: a rate limit, an overloaded
+    /// upstream, anything where the same call may succeed later.
     pub fn retryable(mut self) -> Self {
-        match self.data.as_mut().and_then(Value::as_object_mut) {
-            Some(object) => {
-                object.insert(RETRYABLE_KEY.to_string(), json!(true));
-            }
-            None => self.data = Some(json!({ RETRYABLE_KEY: true })),
-        }
+        self.retryable = true;
         self
     }
 
     /// Whether the sender hinted this failure is worth retrying.
+    ///
+    /// Reads the field; kept as a method so call sites that ask a question read
+    /// like one.
     pub fn is_retryable(&self) -> bool {
-        self.data
-            .as_ref()
-            .and_then(|d| d.get(RETRYABLE_KEY))
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
+        self.retryable
     }
 }
 
@@ -164,24 +164,27 @@ mod tests {
     }
 
     #[test]
-    fn retryable_rides_in_data_and_round_trips() {
+    fn retryable_is_a_top_level_field_and_round_trips() {
         let error = RpcError::internal("rate limited").retryable();
         assert!(error.is_retryable());
 
         let wire = serde_json::to_value(&error).unwrap();
-        // Strictly conformant: code, message, data and nothing else. The *set*
-        // of keys is the contract; JSON object order is not meaningful, and
-        // asserting it only passed while serde_json ran with `preserve_order`.
-        let mut keys: Vec<_> = wire.as_object().unwrap().keys().cloned().collect();
-        keys.sort();
-        assert_eq!(keys, vec!["code", "data", "message"]);
+        assert_eq!(wire["retryable"], true);
 
         let back: RpcError = serde_json::from_value(wire).unwrap();
         assert!(back.is_retryable());
     }
 
     #[test]
-    fn retryable_preserves_existing_data() {
+    fn retryable_is_omitted_when_false() {
+        // An error that never sets it looks exactly as it did before the field
+        // existed, so adding it changed no existing wire.
+        let wire = serde_json::to_value(RpcError::internal("boom")).unwrap();
+        assert!(wire.get("retryable").is_none());
+    }
+
+    #[test]
+    fn retryable_and_data_are_independent() {
         let error = RpcError::internal("slow down")
             .with_data(json!({ "retry_after_ms": 500 }))
             .retryable();

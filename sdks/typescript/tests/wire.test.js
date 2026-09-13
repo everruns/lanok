@@ -70,11 +70,17 @@ test("unclassifiable lines are reported, not thrown", () => {
   }
 });
 
-test("retryable rides in data and stays conformant", () => {
+test("retryable is a top-level field and round trips", () => {
   const error = new RpcError("rate limited").retryable();
   assert.ok(error.isRetryable);
-  assert.deepEqual(Object.keys(error.toWire()).sort(), ["code", "data", "message"]);
+  assert.equal(error.toWire().retryable, true);
   assert.ok(classify(errorResponse(1, error)).error.isRetryable);
+});
+
+test("retryable is omitted when false", () => {
+  // An error that never sets it looks exactly as it did before the field
+  // existed, so adding it changed no existing wire.
+  assert.equal(new RpcError("boom").toWire().retryable, undefined);
 });
 
 test("a bare error defaults to internal", () => {

@@ -73,12 +73,17 @@ def test_unclassifiable_lines_are_reported_not_raised():
         assert isinstance(classify(line), Malformed)
 
 
-def test_retryable_rides_in_data_and_stays_conformant():
+def test_retryable_is_a_top_level_field_and_round_trips():
     error = RpcError("rate limited").retryable()
     assert error.is_retryable
-    wire = error.to_wire()
-    assert sorted(wire) == ["code", "data", "message"]
+    assert error.to_wire()["retryable"] is True
     assert classify(_wire.error(1, error)).error.is_retryable
+
+
+def test_retryable_is_omitted_when_false():
+    # An error that never sets it looks exactly as it did before the field
+    # existed, so adding it changed no existing wire.
+    assert "retryable" not in RpcError("boom").to_wire()
 
 
 def test_a_bare_error_defaults_to_internal():

@@ -36,29 +36,31 @@ class RpcError(Exception):
     rather than silently closing the connection.
     """
 
-    def __init__(self, message: str, code: int = INTERNAL_ERROR, data: Any = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        code: int = INTERNAL_ERROR,
+        data: Any = None,
+        retryable: bool = False,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.data = data
+        self.is_retryable = retryable
 
     def retryable(self) -> "RpcError":
-        """Hint that the failure is worth retrying.
-
-        Carried inside ``data`` rather than beside ``code``, because JSON-RPC
-        enumerates the members of an error object.
-        """
-        if not isinstance(self.data, dict):
-            self.data = {}
-        self.data["retryable"] = True
+        """Hint that the failure is worth retrying: a rate limit, an overloaded
+        upstream, anything where the same call may succeed later."""
+        self.is_retryable = True
         return self
-
-    @property
-    def is_retryable(self) -> bool:
-        return bool(isinstance(self.data, dict) and self.data.get("retryable"))
 
     def to_wire(self) -> dict[str, Any]:
         error: dict[str, Any] = {"code": self.code, "message": self.message}
+        # Omitted when false, so an error that never sets it looks exactly as it
+        # did before the field existed.
+        if self.is_retryable:
+            error["retryable"] = True
         if self.data is not None:
             error["data"] = self.data
         return error
@@ -128,6 +130,7 @@ def classify(line: str) -> Message:
                         str(raw.get("message", "")),
                         int(raw.get("code", INTERNAL_ERROR)),
                         raw.get("data"),
+                        bool(raw.get("retryable", False)),
                     ),
                 )
             # A malformed error object still means failure; losing the outcome

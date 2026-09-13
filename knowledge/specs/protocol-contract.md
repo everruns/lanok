@@ -43,10 +43,16 @@ whichever side sent the request.
 
 ## Errors
 
-The error object carries `code`, `message`, and optional `data`, and nothing
-else. The `retryable` hint lives inside `data` rather than beside `code`,
-because JSON-RPC enumerates the members of an error object and an extra
-top-level field is what makes a wire "JSON-RPC shaped" instead of JSON-RPC.
+The error object carries `code`, `message`, an optional `retryable` flag, and
+optional `data`.
+
+`retryable` is top-level, and omitted when false so it changes no existing
+wire. It rode inside `data` first, on the argument that JSON-RPC enumerates the
+members of an error object. The spec says the error member *must* contain
+`code` and `message` and *may* contain `data`; it does not forbid more. Both
+protocols this kit serves already had the flag at the top level, so burying it
+bought strict-looking conformance at the price of a wire break for every
+consumer.
 
 Reserved codes are JSON-RPC's. Lanok's are outside the reserved range so they
 cannot collide with a future assignment: `-32800` cancelled, `-32801` timeout,

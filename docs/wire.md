@@ -44,8 +44,9 @@ Ids may be numbers or strings inbound; lanok emits numbers.
 {"jsonrpc":"2.0","id":1,"error":{"code":-32602,"message":"`text` must be a string"}}
 ```
 
-`code`, `message`, optional `data`, nothing else. A "retryable" hint lives
-*inside* `data`, because JSON-RPC enumerates the members of an error object.
+`code`, `message`, an optional `retryable` flag, and optional `data`.
+`retryable` is omitted when false, so an error that never sets it looks exactly
+as it did before the field existed.
 
 | Code | Meaning |
 |------|---------|

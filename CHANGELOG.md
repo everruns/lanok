@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`RpcError::retryable` is a top-level field**, not a key inside `data`. It
+  is omitted when false, so it changes no existing wire. The original placement
+  argued that JSON-RPC enumerates the members of an error object; the spec says
+  `code` and `message` are required and `data` is optional, and does not forbid
+  more. Both protocols this kit serves already carried the flag at the top
+  level, so the strict reading bought nothing and cost every consumer a wire
+  break.
+
 - `lanok-core` no longer enables `serde_json/preserve_order`. Cargo unifies
   features across the dependency graph, so it was imposing insertion-ordered
   JSON maps on every consumer: taking the dependency reordered every schema
