@@ -1,0 +1,105 @@
+{
+  "protocol": "echo",
+  "version": "1.0",
+  "cases": [
+    {
+      "name": "handshake reports a compatible version",
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+          "name": "lanok conform",
+          "protocol_version": "1.0"
+        }
+      },
+      "expect": {
+        "result_contains": {
+          "protocol_version": "1.0"
+        }
+      }
+    },
+    {
+      "name": "an unknown method is refused, not ignored",
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "no/such/method"
+      },
+      "expect": {
+        "error_code": -32601
+      }
+    },
+    {
+      "name": "echo transforms text and streams progress first",
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 3,
+        "method": "echo",
+        "params": {
+          "text": "hello",
+          "shout": true
+        }
+      },
+      "expect": {
+        "notifications": [
+          "echo/progress",
+          "echo/progress",
+          "echo/progress"
+        ],
+        "result_contains": {
+          "text": "HELLO"
+        }
+      }
+    },
+    {
+      "name": "echo leaves text alone when shout is absent",
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 4,
+        "method": "echo",
+        "params": {
+          "text": "Hello"
+        }
+      },
+      "expect": {
+        "result_contains": {
+          "text": "Hello"
+        }
+      }
+    },
+    {
+      "name": "malformed params are refused, not guessed at",
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "echo",
+        "params": {
+          "text": 42
+        }
+      },
+      "expect": {
+        "error_code": -32602
+      }
+    },
+    {
+      "name": "ping answers with no payload",
+      "send": {
+        "jsonrpc": "2.0",
+        "id": 6,
+        "method": "ping"
+      },
+      "expect": {}
+    },
+    {
+      "name": "an unknown notification is ignored, not answered",
+      "send": {
+        "jsonrpc": "2.0",
+        "method": "no/such/notification"
+      },
+      "expect": {
+        "no_response": true
+      }
+    }
+  ]
+}

@@ -6,8 +6,10 @@ Cargo.lock.bak
 # SDK build output and caches.
 /sdks/typescript/dist/
 /sdks/typescript/node_modules/
-/sdks/python/**/__pycache__/
-/sdks/python/.pytest_cache/
+/sdks/typescript/package-lock.json
+**/__pycache__/
+**/.pytest_cache/
+*.egg-info/
 
 .DS_Store
 

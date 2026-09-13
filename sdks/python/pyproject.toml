@@ -1,0 +1,23 @@
+[project]
+name = "lanok"
+version = "0.1.0"
+description = "Build JSON-RPC 2.0 protocols in Python, on the lanok wire contract."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Mykhailo Chalyi", email = "mike@chaliy.name" }]
+keywords = ["jsonrpc", "protocol", "stdio", "rpc", "everruns"]
+
+[project.urls]
+Homepage = "https://everruns.com"
+Repository = "https://github.com/everruns/lanok"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["lanok*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

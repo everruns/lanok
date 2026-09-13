@@ -108,13 +108,36 @@ jobs:
       - name: Echo example (blocking SimpleServer)
         run: cargo run -q -p echo-protocol --bin echo-client -- --blocking
 
-      # Replay the committed conformance vectors against the server process, the
-      # same way a non-Rust implementation is checked.
-      - name: Conformance vectors
+      # One suite, three independent implementations. This is the claim that
+      # a non-Rust server is a first-class citizen, checked rather than asserted.
+      - name: Conformance vectors (Rust server)
         run: |
           cargo build -q -p echo-protocol --bin echo-server
           cargo run -q -p lanok-cli -- conform \
             --vectors examples/echo/schema/v1/conformance.json -- ./target/debug/echo-server
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Conformance vectors (Python server)
+        run: |
+          cargo run -q -p lanok-cli -- conform \
+            --vectors examples/echo/schema/v1/conformance.json \
+            -- python3 examples/echo-python/server.py
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Conformance vectors (TypeScript server)
+        run: |
+          cd sdks/typescript && npm ci && npm run build && cd ../..
+          cargo run -q -p lanok-cli -- conform \
+            --vectors examples/echo/schema/v1/conformance.json \
+            -- node examples/echo-typescript/server.mjs
 
   sdks:
     name: SDKs

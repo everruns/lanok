@@ -72,11 +72,26 @@ test-ts:
         --schema examples/echo/schema/v1 --out sdks/typescript/src/generatedEcho.ts --check
     cd sdks/typescript && npm ci && npm test
 
-# Replay the protocol's conformance vectors against a server process.
-conform:
+# Replay the protocol's conformance vectors against every implementation:
+# Rust, Python, and TypeScript. One suite, three servers.
+conform: build-ts-sdk
     cargo build -q -p echo-protocol --bin echo-server
     cargo run -q -p lanok-cli -- conform \
         --vectors examples/echo/schema/v1/conformance.json -- ./target/debug/echo-server
+    cargo run -q -p lanok-cli -- conform \
+        --vectors examples/echo/schema/v1/conformance.json \
+        -- python3 examples/echo-python/server.py
+    cargo run -q -p lanok-cli -- conform \
+        --vectors examples/echo/schema/v1/conformance.json \
+        -- node examples/echo-typescript/server.mjs
+
+# Build the TypeScript SDK's dist/, which the TS example server imports.
+build-ts-sdk:
+    cd sdks/typescript && npm ci && npm run build
+
+# Describe a protocol from its committed artifacts.
+describe:
+    cargo run -q -p lanok-cli -- describe --schema examples/echo/schema/v1
 
 # === Release ===
 
