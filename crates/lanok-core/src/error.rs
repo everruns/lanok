@@ -69,6 +69,10 @@ pub struct RpcError {
     /// exactly as it did before the field existed, and an unknown failure is
     /// never retried blindly.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    // Declared for the schema too: an implementor reading schema.json has to be
+    // told what an absent field means, and `skip_serializing_if` means absent is
+    // the common case.
+    #[cfg_attr(feature = "schema", schemars(extend("default" = false)))]
     pub retryable: bool,
     /// Optional structured payload for programmatic handling (JSON-RPC `data`).
     /// Omitted from the wire when absent.
@@ -212,6 +216,34 @@ mod tests {
 
         let back: RpcError = serde_json::from_value(wire).unwrap();
         assert!(back.is_retryable());
+    }
+
+    #[test]
+    fn the_wire_shape_is_pinned() {
+        // Byte-level, because this is the shape downstream protocols and their
+        // non-Rust SDKs parse. A change here is a wire change, whatever the
+        // Rust API says.
+        let cases = [
+            (
+                RpcError::internal("boom"),
+                r#"{"code":-32603,"message":"boom"}"#,
+            ),
+            (
+                RpcError::internal("busy").retryable(),
+                r#"{"code":-32603,"message":"busy","retryable":true}"#,
+            ),
+            (
+                RpcError::new(codes::INVALID_PARAMS, "bad"),
+                r#"{"code":-32602,"message":"bad"}"#,
+            ),
+            (
+                RpcError::internal("slow").with_data(json!({"retry_after_ms":500})),
+                r#"{"code":-32603,"message":"slow","data":{"retry_after_ms":500}}"#,
+            ),
+        ];
+        for (error, expected) in cases {
+            assert_eq!(serde_json::to_string(&error).unwrap(), expected);
+        }
     }
 
     #[test]
