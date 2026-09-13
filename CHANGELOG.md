@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`Direction::Either`**: a method both sides may send. Its stubs live on a
+  separate `SharedApi` trait so importing both roles cannot make a call
+  ambiguous, and both handler traits carry it because it can arrive from either
+  side. It gives up compile-time role gating, so it is a deliberate third
+  option, not the default. Motivated by MCP's `ping`,
+  `notifications/cancelled` and `notifications/progress`, which have no
+  direction.
+- `ProtocolMeta::declared_by`, the counterpart to `sent_by`: what a method was
+  literally declared as, so a report lists an `either` method once rather than
+  in both columns.
+
 - **A symmetric `Peer` in the Python and TypeScript SDKs.** Both languages can
   now be either end of a connection, reverse requests included, rather than
   only responding. Python uses threads so `peer.request(...)` returns a value

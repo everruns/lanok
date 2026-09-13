@@ -124,8 +124,11 @@ pub fn report(meta: ProtocolMeta) -> String {
     for (label, direction) in [
         ("initiator -> responder", Direction::Initiator),
         ("responder -> initiator", Direction::Responder),
+        ("either way", Direction::Either),
     ] {
-        let methods: Vec<_> = meta.sent_by(direction).collect();
+        // `declared_by`, not `sent_by`: a method either side may send belongs in
+        // its own section rather than listed twice.
+        let methods: Vec<_> = meta.declared_by(direction).collect();
         if methods.is_empty() {
             continue;
         }

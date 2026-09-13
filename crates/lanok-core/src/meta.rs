@@ -26,6 +26,12 @@ pub enum Direction {
     Initiator,
     /// Sent by the side that answered. A reverse message.
     Responder,
+    /// Sent by either side. Rare, and worth being sure about before reaching
+    /// for it: a method declared this way loses the compile-time role gating
+    /// that makes calling one the wrong way an error rather than a runtime
+    /// surprise. MCP's `ping`, `notifications/cancelled` and
+    /// `notifications/progress` are the motivating real examples.
+    Either,
 }
 
 /// Whether a method expects a response.
@@ -71,16 +77,24 @@ impl ProtocolMeta {
         self.methods.iter().find(|m| m.name == name)
     }
 
-    /// The methods one side sends.
+    /// The methods one side may send, including the ones either side may.
     pub fn sent_by(&self, direction: Direction) -> impl Iterator<Item = &MethodMeta> {
+        self.methods
+            .iter()
+            .filter(move |m| m.direction == direction || m.direction == Direction::Either)
+    }
+
+    /// The methods declared as sent by exactly `direction`, excluding
+    /// [`Direction::Either`]. What a report showing one column at a time wants.
+    pub fn declared_by(&self, direction: Direction) -> impl Iterator<Item = &MethodMeta> {
         self.methods
             .iter()
             .filter(move |m| m.direction == direction)
     }
 
-    /// Whether the protocol declares any reverse message at all. A protocol
-    /// where this is false is using one direction of a bidirectional peer,
-    /// which is fine, and the answer is worth showing in a doctor report.
+    /// Whether the protocol declares any message the responder may send. A
+    /// protocol where this is false is using one direction of a bidirectional
+    /// peer, which is fine, and the answer is worth showing in a doctor report.
     pub fn is_bidirectional(&self) -> bool {
         self.sent_by(Direction::Responder).next().is_some()
     }
@@ -124,6 +138,46 @@ mod tests {
         assert_eq!(META.sent_by(Direction::Initiator).count(), 1);
         assert_eq!(META.sent_by(Direction::Responder).count(), 1);
         assert!(META.is_bidirectional());
+    }
+
+    #[test]
+    fn either_counts_for_both_sides() {
+        const WITH_EITHER: ProtocolMeta = ProtocolMeta {
+            methods: &[
+                MethodMeta {
+                    name: "run",
+                    direction: Direction::Initiator,
+                    kind: MethodKind::Request,
+                    doc: "",
+                    requires: None,
+                },
+                MethodMeta {
+                    name: "ping",
+                    direction: Direction::Either,
+                    kind: MethodKind::Request,
+                    doc: "",
+                    requires: None,
+                },
+            ],
+            ..META
+        };
+        // Either side may send `ping`, so it appears in both columns.
+        assert_eq!(WITH_EITHER.sent_by(Direction::Initiator).count(), 2);
+        assert_eq!(WITH_EITHER.sent_by(Direction::Responder).count(), 1);
+        // And in neither when asking what was literally declared one-way.
+        assert_eq!(WITH_EITHER.declared_by(Direction::Initiator).count(), 1);
+        assert_eq!(WITH_EITHER.declared_by(Direction::Responder).count(), 0);
+        // The responder can send `ping`, so the connection does carry traffic
+        // in that direction, which is what the question means.
+        assert!(WITH_EITHER.is_bidirectional());
+    }
+
+    #[test]
+    fn either_serializes_as_itself() {
+        assert_eq!(
+            serde_json::to_value(Direction::Either).unwrap(),
+            serde_json::json!("either")
+        );
     }
 
     #[test]

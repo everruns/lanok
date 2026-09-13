@@ -43,23 +43,50 @@ other side something while a request is still open. ACP's
 protocol with no connection to lanok at all. That is the single strongest piece
 of evidence that the symmetric peer describes something real.
 
-### MCP does not, and the reason is structural
+### MCP did not, and that produced `Direction::Either`
 
 Three MCP methods are **bidirectional**: `ping`, `notifications/cancelled`, and
 `notifications/progress` may be sent by either side.
 
-Lanok's model is that a method has one direction, declared once, and the
-generated stubs are role-gated so calling one the wrong way does not compile.
-That gating is worth having for a protocol with one-way methods, and a wall for
-a protocol without. The declaration validator rejects a duplicate wire name, so
-declaring such a method twice is not even expressible.
+Lanok's model was that a method has one direction, declared once, with
+role-gated stubs so calling one the wrong way does not compile. Declaring such a
+method twice under different Rust names is rejected by the validator as a
+duplicate wire name, which is the right answer to the wrong question.
 
-**This is not a bug to fix now.** Nothing we own needs a symmetric `ping`, and
-role gating is worth more than one. It is written down so the limit is known
-rather than discovered by whoever first wants one.
+So the model grew a third direction. An `either` method:
 
-If it ever needs fixing, the shape is a third direction (`either`) that
-generates stubs and handlers on both sides, not a duplicate-name exemption.
+* puts its stubs on a separate `SharedApi` trait, not on both role traits, so
+  importing both roles cannot make a call ambiguous;
+* appears on **both** handler traits and is routed by **both** dispatchers,
+  because it can arrive from either side;
+* counts for both sides in `sent_by` and for neither in `declared_by`, so a
+  doctor report lists it once, in its own section.
+
+It gives up the compile-time role gating, which is why it is a deliberate third
+option and not the default. All 25 MCP methods now declare.
+
+This is the experiment paying for itself. Lanok will never serve MCP, but a
+protocol of ours could want a symmetric `ping`, and until MCP was written down
+here it could not have one.
+
+## What this does not show: wire identity
+
+The declarations use `serde_json::Value` payloads and are never connected to a
+real MCP or ACP peer. They show that the **method surface** is expressible and
+nothing more.
+
+Specifically, this experiment is no evidence that a lanok peer could talk to an
+existing MCP or ACP implementation. That would need payload types, and a
+byte-level check of at least: whether `params` may be omitted when empty,
+whether an error object carrying an unexpected `retryable` is tolerated,
+whether string ids are required anywhere, and whether either protocol rejects
+unknown fields. None of that has been looked at, because neither is a consumer
+and neither should become one.
+
+Wire identity **is** tested where it matters, for the protocols lanok actually
+serves: mira's adoption keeps its Python and TypeScript study SDKs, which are
+independent implementations that know nothing about lanok, and CI drives the
+Rust host against both.
 
 ## Two smaller gaps, both worked around
 

@@ -27,6 +27,10 @@ use syn::{Attribute, Ident, LitStr, Token, Type, braced, parenthesized};
 pub enum Direction {
     Initiator,
     Responder,
+    /// Either side may send it. Costs the compile-time role gating, so it is
+    /// for methods that genuinely have no direction, not for saving a
+    /// declaration.
+    Either,
 }
 
 impl Direction {
@@ -34,6 +38,7 @@ impl Direction {
         match self {
             Direction::Initiator => quote::quote!(::lanok::Direction::Initiator),
             Direction::Responder => quote::quote!(::lanok::Direction::Responder),
+            Direction::Either => quote::quote!(::lanok::Direction::Either),
         }
     }
 }
@@ -184,10 +189,11 @@ fn parse_method(input: ParseStream, doc: String) -> syn::Result<Method> {
     let direction = match keyword.to_string().as_str() {
         "initiator" => Direction::Initiator,
         "responder" => Direction::Responder,
+        "either" => Direction::Either,
         other => {
             return Err(syn::Error::new(
                 span,
-                format!("expected `initiator` or `responder`, found `{other}`"),
+                format!("expected `initiator`, `responder`, or `either`, found `{other}`"),
             ));
         }
     };
@@ -396,6 +402,23 @@ mod tests {
     }
 
     #[test]
+    fn either_is_a_direction() {
+        // MCP's ping, cancelled and progress may be sent by either side.
+        let protocol = parse(quote! {
+            name = "p"; version = "1.0";
+            either fn ping() -> Pong;
+            either notify "notifications/cancelled" cancelled(CancelParams);
+        })
+        .unwrap();
+        assert!(
+            protocol
+                .methods
+                .iter()
+                .all(|m| m.direction == Direction::Either)
+        );
+    }
+
+    #[test]
     fn min_defaults_to_the_majors_first_minor() {
         let protocol = parse(quote! {
             name = "p";
@@ -482,7 +505,7 @@ mod tests {
     fn rejects_an_unknown_direction_or_kind() {
         assert!(
             error(quote! { name = "p"; version = "1.0"; sideways fn a(); })
-                .contains("`initiator` or `responder`")
+                .contains("`initiator`, `responder`, or `either`")
         );
         assert!(
             error(quote! { name = "p"; version = "1.0"; initiator shout a(); })

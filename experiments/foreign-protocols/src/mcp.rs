@@ -4,33 +4,20 @@
 //! own guidance says so. It is here as the hardest available test, because it
 //! was designed by people who had never heard of lanok.
 //!
-//! # It does not fit, and the reason is structural
+//! # It fits now, and did not when the experiment was written
 //!
-//! Three MCP methods are **bidirectional**: either side may send them.
+//! Three MCP methods are **bidirectional**: `ping`, `notifications/cancelled`
+//! and `notifications/progress` may be sent by either side. Lanok's model was
+//! that a method has one direction, declared once, with role-gated stubs, so
+//! these were the one part of MCP it could not say. Declaring each twice under
+//! different Rust names is rejected by the validator as a duplicate wire name,
+//! which is the right answer to the wrong question.
 //!
-//! | Method | Sent by |
-//! |---|---|
-//! | `ping` | client or server |
-//! | `notifications/cancelled` | client or server |
-//! | `notifications/progress` | client or server |
-//!
-//! Lanok's model is that a method has *one* direction, declared once, and the
-//! generated stubs are gated by role so calling one the wrong way does not
-//! compile. That gating is a feature for a protocol with one-way methods and a
-//! wall for a protocol without.
-//!
-//! The workaround is below: declare each twice, under different Rust names,
-//! with the same wire name. The declaration validator rejects a duplicate wire
-//! name, so it is not even expressible today. What follows is the surface
-//! **minus** the three bidirectional methods, which is what lanok can actually
-//! say.
-//!
-//! # What that means
-//!
-//! Not that lanok should grow an `either` direction tomorrow. Nothing we own
-//! needs one, and the role gating is worth more than symmetric pings. It means
-//! the limit is known and written down, rather than discovered by whoever first
-//! wants a symmetric `ping` in a protocol of ours.
+//! That gap is what produced [`lanok::Direction::Either`]. All 25 methods now
+//! declare. An `either` method gives up the compile-time role gating, which is
+//! why it is a deliberate third option rather than the default: its stubs live
+//! on `SharedApi`, and both handler traits carry it because it can arrive from
+//! either side.
 
 type Json = serde_json::Value;
 
@@ -83,8 +70,14 @@ lanok::protocol! {
     responder notify "notifications/prompts/list_changed" prompts_list_changed()
         requires "prompts_list_changed";
 
-    // `ping`, `notifications/cancelled` and `notifications/progress` are absent.
-    // They are bidirectional, and a lanok method has one direction.
+    // Either side may send these three. This is the shape that did not exist
+    // in lanok until MCP was declared here.
+    /// Liveness check, in whichever direction.
+    either fn ping(Json) -> Json;
+    /// Abandon an in-flight request. Either side may give up on the other.
+    either notify "notifications/cancelled" cancelled(Json);
+    /// Progress on a long call, reported by whoever is doing the work.
+    either notify "notifications/progress" progress(Json);
 
     capabilities {
         tools, resources, resources_subscribe, resources_list_changed,
@@ -104,17 +97,21 @@ mod tests {
     use lanok::Direction;
 
     #[test]
-    fn mcp_declares_except_for_its_bidirectional_methods() {
-        // 25 methods in the published schema, minus the three that flow both
-        // ways, is what lanok can say.
-        assert_eq!(META.methods.len() + BIDIRECTIONAL_METHODS.len(), 25);
+    fn mcp_declares_in_full() {
+        // Every method in the published 2025-06-18 schema.
+        assert_eq!(META.methods.len(), 25);
 
         for method in BIDIRECTIONAL_METHODS {
-            assert!(
-                META.method(method).is_none(),
-                "{method} is bidirectional; declaring it would pick a direction MCP does not have"
+            assert_eq!(
+                META.method(method).unwrap().direction,
+                Direction::Either,
+                "{method} has no direction in MCP, and must not be given one here"
             );
         }
+
+        // Either side may send them, so they count for both columns and are
+        // declared as neither.
+        assert_eq!(META.declared_by(Direction::Either).count(), 3);
     }
 
     #[test]

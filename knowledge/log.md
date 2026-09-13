@@ -1,5 +1,19 @@
 # Knowledge Log
 
+## 2026-09-13, A method may have no direction
+
+- [Foreign protocol fit](specs/foreign-protocols.md): declaring MCP found the
+  one thing lanok could not say, and `Direction::Either` is the answer. Stubs
+  go on a separate `SharedApi` so importing both roles stays unambiguous; both
+  handler traits carry the method and both dispatchers route it, because it can
+  arrive from either side. All 25 MCP methods now declare.
+- It gives up compile-time role gating, so it is a third option rather than the
+  default. Reach for it when a method genuinely has no direction, not to save a
+  declaration.
+- Recorded alongside it: the experiment proves the method surface is
+  expressible and says nothing about wire identity, which is a different claim
+  needing a different test.
+
 ## 2026-09-13, The handshake is the protocol's, and MCP does not fit
 
 - [Foreign protocol fit](specs/foreign-protocols.md): YEP, ACP, and MCP

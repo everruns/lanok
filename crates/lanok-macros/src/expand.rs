@@ -76,6 +76,7 @@ pub fn expand(protocol: Protocol) -> TokenStream {
 
     let initiator_stubs = stubs(&methods, Direction::Initiator);
     let responder_stubs = stubs(&methods, Direction::Responder);
+    let shared_stubs = stubs(&methods, Direction::Either);
     // A handler answers what the *other* side sends.
     let responder_handlers = handler_trait(&methods, Direction::Initiator, "ResponderHandler");
     let initiator_handlers = handler_trait(&methods, Direction::Responder, "InitiatorHandler");
@@ -94,6 +95,7 @@ pub fn expand(protocol: Protocol) -> TokenStream {
 
     let initiator_api = api_trait(&methods, Direction::Initiator, "InitiatorApi");
     let responder_api = api_trait(&methods, Direction::Responder, "ResponderApi");
+    let shared_api = api_trait(&methods, Direction::Either, "SharedApi");
     let schema_document = schema_document(&methods);
 
     let name_doc = format!("The `{name}` protocol, version {major}.{minor}.");
@@ -134,8 +136,10 @@ pub fn expand(protocol: Protocol) -> TokenStream {
 
         #initiator_api
         #responder_api
+        #shared_api
         #initiator_stubs
         #responder_stubs
+        #shared_stubs
         #responder_handlers
         #initiator_handlers
         #responder_dispatch
@@ -183,15 +187,24 @@ fn schema_document(methods: &[Method]) -> TokenStream {
 /// The trait declaration for one direction's outbound calls.
 fn api_trait(methods: &[Method], direction: Direction, trait_name: &str) -> TokenStream {
     let trait_ident = format_ident!("{}", trait_name);
-    let role = match direction {
-        Direction::Initiator => "initiator",
-        Direction::Responder => "responder",
+    let doc = match direction {
+        Direction::Either => "Methods **either side** may send. Implemented for \
+             [`lanok::Peer`].\n\nThese are on their own trait rather than on both role \
+             traits, so importing both roles cannot make a call ambiguous. They carry no \
+             role gating, which is the cost of declaring a method `either`."
+            .to_string(),
+        role => {
+            let role = match role {
+                Direction::Initiator => "initiator",
+                _ => "responder",
+            };
+            format!(
+                "Methods the {role} sends. Implemented for [`lanok::Peer`]; import it to call \
+                 them.\n\nRole gating is by trait: the other side's methods are not on this \
+                 one, so calling a method in the wrong direction does not compile."
+            )
+        }
     };
-    let doc = format!(
-        "Methods the {role} sends. Implemented for [`lanok::Peer`]; import it to call them.\n\n\
-         Role gating is by trait: the other side's methods are not on this one, so calling a \
-         method in the wrong direction does not compile."
-    );
 
     let signatures = methods
         .iter()
@@ -232,6 +245,7 @@ fn stubs(methods: &[Method], direction: Direction) -> TokenStream {
     let trait_ident = match direction {
         Direction::Initiator => format_ident!("InitiatorApi"),
         Direction::Responder => format_ident!("ResponderApi"),
+        Direction::Either => format_ident!("SharedApi"),
     };
 
     let bodies = methods
@@ -326,7 +340,7 @@ fn handler_trait(methods: &[Method], incoming: Direction, trait_name: &str) -> T
     let trait_ident = format_ident!("{}", trait_name);
     let answering = match incoming {
         Direction::Initiator => "responder",
-        Direction::Responder => "initiator",
+        _ => "initiator",
     };
     let doc = format!(
         "What the {answering} answers.\n\n\
@@ -335,7 +349,7 @@ fn handler_trait(methods: &[Method], incoming: Direction, trait_name: &str) -> T
          until its timeout."
     );
 
-    let signatures = methods.iter().filter(|m| m.direction == incoming).map(|m| {
+    let signatures = methods.iter().filter(|m| answers(m, incoming)).map(|m| {
         let ident = &m.ident;
         let wire = &m.wire_name;
         let doc = if m.doc.is_empty() {
@@ -388,11 +402,11 @@ fn dispatch(
 
     let request_arms = methods
         .iter()
-        .filter(|m| m.direction == incoming && m.expects_response)
+        .filter(|m| answers(m, incoming) && m.expects_response)
         .map(request_arm);
     let notification_arms = methods
         .iter()
-        .filter(|m| m.direction == incoming && !m.expects_response)
+        .filter(|m| answers(m, incoming) && !m.expects_response)
         .map(notification_arm);
 
     let doc = format!(
@@ -441,6 +455,14 @@ fn dispatch(
             }
         }
     }
+}
+
+/// Whether a handler for messages arriving from `incoming` answers this method.
+///
+/// A method either side may send arrives from both, so both handler traits
+/// carry it and both dispatchers route it.
+fn answers(method: &Method, incoming: Direction) -> bool {
+    method.direction == incoming || method.direction == Direction::Either
 }
 
 fn request_arm(method: &Method) -> TokenStream {

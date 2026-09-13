@@ -21,21 +21,27 @@
 //!
 //! # Findings
 //!
-//! **Two of three fit exactly.** YEP and ACP declare cleanly: every method has
-//! one direction, requests and notifications are distinguishable, and the
-//! optional parts gate on capabilities.
+//! **All three fit, and two of them did not when this was written.**
 //!
-//! **MCP does not, and the reason is structural.** Three of its methods are
-//! *bidirectional*: `ping`, `notifications/cancelled`, and
-//! `notifications/progress` may be sent by either side. Lanok's model says a
-//! method has one direction, declared once. That is not a missing feature, it
-//! is a different model, and the workaround (declaring each twice under
-//! different Rust names) is ugly enough to be evidence rather than a fix. See
-//! [`mcp`] for the detail.
+//! YEP and ACP declared cleanly from the start: every method has one direction,
+//! requests and notifications are distinguishable, and the optional parts gate
+//! on capabilities.
 //!
-//! This is worth knowing even though lanok will never serve MCP, because a
-//! future protocol of ours could want a symmetric `ping`, and today it could
-//! not have one.
+//! MCP did not. Three of its methods are *bidirectional*: `ping`,
+//! `notifications/cancelled` and `notifications/progress` may be sent by either
+//! side, and lanok's model said a method has one direction, declared once. The
+//! gap produced [`lanok::Direction::Either`], and all 25 MCP methods now
+//! declare.
+//!
+//! That is the experiment paying for itself. Lanok will never serve MCP, but a
+//! protocol of ours could want a symmetric `ping`, and until MCP was written
+//! down here it could not have one.
+//!
+//! What remains unproven is **wire identity**. These declarations use
+//! `serde_json::Value` payloads and are never connected to a real MCP or ACP
+//! peer, so they show the method surface is expressible and nothing more. See
+//! `knowledge/specs/foreign-protocols.md` for what that does and does not
+//! license anyone to claim.
 
 pub mod acp;
 pub mod mcp;
