@@ -94,6 +94,30 @@ Capability state lives on the peer, so answering there is what makes
 `supports()` true on the responding side, which is exactly what a reverse
 request needs to know.
 
+## Mechanism here, policy in the protocol
+
+Lanok owns what is genuinely the same for every protocol, and refuses to decide
+what is not. The line is not always obvious, and cancellation is where it was
+drawn wrong first.
+
+Cancellation began as one builder setting, `cancel_notification("$/cancel")`: a
+method name, always sent as a notification, always carrying `{"id": n}`, always
+armed for every request. That is one point in a space with at least four
+occupants. mira's `cancel` is an acknowledged *request*, armed only for
+cancelable methods and only against a study that advertised the capability.
+LSP's `$/cancelRequest` is a notification with `{id}`. MCP's
+`notifications/cancelled` carries `{requestId, reason}`.
+
+So the peer now provides the mechanism, [`AbandonHook`]: it notices that a
+caller went away, and hands over the id, the method, and whether the caller
+timed out or dropped. What goes on the wire, and whether anything does, belongs
+to the protocol. `cancel_notification` survives as a three-line convenience
+over the hook, because the LSP shape is common.
+
+The general rule, worth applying before adding the next setting: if two real
+protocols would fill a knob differently, it is not a knob, it is a hook. A
+configuration option that only one of them can use is a guess wearing an API.
+
 ## Two server shapes
 
 |                  | `SimpleServer`            | `Peer`                        |

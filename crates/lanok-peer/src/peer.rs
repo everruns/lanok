@@ -17,9 +17,9 @@
 //!
 //! * A response is routed to the caller that registered its id, and each
 //!   direction has its own id space.
-//! * A dropped request future frees its slot and, if the protocol declares a
-//!   cancel notification, tells the peer to stop working. A caller that times
-//!   out or is cancelled does not leave the other side burning cycles.
+//! * A dropped or timed-out request future frees its slot and runs the
+//!   protocol's abandonment hook, so the peer can stop work nobody is waiting
+//!   for. Lanok notices; the protocol decides what that means on the wire.
 //! * When the connection ends, every pending request fails at once rather than
 //!   waiting out its individual timeout.
 
@@ -37,6 +37,33 @@ use crate::handshake::{Hello, INITIALIZE, INITIALIZED};
 
 type Pending = HashMap<Id, oneshot::Sender<Result<Value, RpcError>>>;
 
+/// A request whose caller went away before the response arrived.
+#[derive(Debug, Clone)]
+pub struct Abandoned {
+    /// The id the peer knows this request by.
+    pub id: Id,
+    /// The method that was called, so a hook can arm only for the methods its
+    /// protocol says are cancelable.
+    pub method: String,
+    /// Whether the caller gave up because its deadline passed, rather than
+    /// dropping the future.
+    pub timed_out: bool,
+}
+
+/// What to do when a request is abandoned.
+///
+/// Lanok owns the mechanism, noticing the abandonment and handing over the id;
+/// the protocol owns what goes on the wire. That split is deliberate, because
+/// there is no single right answer: mira's `cancel` is an acknowledged request,
+/// LSP's `$/cancelRequest` is a notification carrying `{id}`, and MCP's
+/// `notifications/cancelled` carries `{requestId, reason}`. A hook expresses
+/// all three, and the arming policy too, where a single method name could only
+/// express one.
+///
+/// Called from a `Drop`, so it must not block. Use [`Peer::notify`] directly,
+/// or spawn for anything that needs to await.
+pub type AbandonHook = Arc<dyn Fn(&Peer, &Abandoned) + Send + Sync>;
+
 /// What the peer learned about the other side during the handshake.
 #[derive(Clone, Debug, Default)]
 pub struct PeerInfo {
@@ -45,7 +72,6 @@ pub struct PeerInfo {
     pub capabilities: Capabilities,
 }
 
-#[derive(Debug)]
 struct Inner {
     outbound: mpsc::UnboundedSender<Message>,
     /// `None` once the connection has ended, which is how a late caller learns
@@ -53,11 +79,21 @@ struct Inner {
     pending: Mutex<Option<Pending>>,
     ids: IdAllocator,
     request_timeout: Option<Duration>,
-    cancel_method: Option<String>,
+    on_abandon: Option<AbandonHook>,
     info: Mutex<PeerInfo>,
     closed: AtomicBool,
     /// What to answer `initialize` with, when this peer serves the handshake.
     serves_handshake: Option<Hello>,
+}
+
+impl std::fmt::Debug for Inner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Peer")
+            .field("closed", &self.closed)
+            .field("serves_handshake", &self.serves_handshake.is_some())
+            .field("on_abandon", &self.on_abandon.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 /// A live connection to another peer. Cheap to clone; clones share one
@@ -66,17 +102,20 @@ struct Inner {
 pub struct Peer(Arc<Inner>);
 
 /// Configures a peer before it is connected.
-#[derive(Debug)]
 pub struct PeerBuilder {
     handler: Arc<dyn Handler>,
     request_timeout: Option<Duration>,
-    cancel_method: Option<String>,
+    on_abandon: Option<AbandonHook>,
     serves_handshake: Option<Hello>,
 }
 
-impl std::fmt::Debug for dyn Handler {
+impl std::fmt::Debug for PeerBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Handler")
+        f.debug_struct("PeerBuilder")
+            .field("request_timeout", &self.request_timeout)
+            .field("on_abandon", &self.on_abandon.is_some())
+            .field("serves_handshake", &self.serves_handshake.is_some())
+            .finish_non_exhaustive()
     }
 }
 
@@ -88,7 +127,7 @@ impl Default for PeerBuilder {
             // a default would silently break the legitimate long call (a model
             // request, a build) that these protocols exist to carry.
             request_timeout: None,
-            cancel_method: None,
+            on_abandon: None,
             serves_handshake: None,
         }
     }
@@ -113,15 +152,50 @@ impl PeerBuilder {
         self
     }
 
-    /// The notification this protocol uses to abandon an in-flight request.
+    /// Run `hook` when a caller abandons a request, so the peer can stop work
+    /// nobody is waiting for.
     ///
-    /// Opt in, because the method name belongs to the protocol rather than to
-    /// lanok. With it set, dropping a request future sends
-    /// `{ "method": <name>, "params": { "id": <id> } }` so the peer can stop
-    /// work the caller no longer wants.
-    pub fn cancel_notification(mut self, method: impl Into<String>) -> Self {
-        self.cancel_method = Some(method.into());
+    /// The hook decides everything the protocol owns: whether to send anything
+    /// at all, whether it is a notification or a request, what the params are
+    /// called, and which methods are worth cancelling. It receives the method
+    /// name and whether the caller timed out, and can consult
+    /// [`Peer::supports`] to stay quiet against a peer that never advertised
+    /// cancellation.
+    ///
+    /// ```no_run
+    /// # use lanok_peer::{Peer, PeerBuilder};
+    /// # use std::sync::Arc;
+    /// # let builder = Peer::builder();
+    /// // mira: an acknowledged request, only for cancelable methods, only when
+    /// // the study said it can.
+    /// builder.on_abandon(Arc::new(|peer: &Peer, abandoned| {
+    ///     if !peer.supports("cancel")
+    ///         || !matches!(abandoned.method.as_str(), "run" | "execute" | "score")
+    ///     {
+    ///         return;
+    ///     }
+    ///     let peer = peer.clone();
+    ///     let id = abandoned.id.clone();
+    ///     tokio::spawn(async move {
+    ///         let _ = peer.request("cancel", serde_json::json!({ "id": id })).await;
+    ///     });
+    /// }));
+    /// ```
+    pub fn on_abandon(mut self, hook: AbandonHook) -> Self {
+        self.on_abandon = Some(hook);
         self
+    }
+
+    /// Send `method` as a notification carrying `{ "id": <id> }` when a request
+    /// is abandoned.
+    ///
+    /// The LSP-shaped convenience over [`PeerBuilder::on_abandon`], which is
+    /// what most protocols want and what `$/cancelRequest` does.
+    pub fn cancel_notification(self, method: impl Into<String>) -> Self {
+        let method = method.into();
+        self.on_abandon(Arc::new(move |peer: &Peer, abandoned: &Abandoned| {
+            peer.notify(method.clone(), serde_json::json!({ "id": abandoned.id }));
+        }))
     }
 
     /// Answer `initialize` with `ours`, rather than passing it to the handler.
@@ -145,7 +219,7 @@ impl PeerBuilder {
             pending: Mutex::new(Some(Pending::new())),
             ids: IdAllocator::new(),
             request_timeout: self.request_timeout,
-            cancel_method: self.cancel_method,
+            on_abandon: self.on_abandon,
             info: Mutex::new(PeerInfo::default()),
             closed: AtomicBool::new(false),
             serves_handshake: self.serves_handshake,
@@ -192,10 +266,12 @@ impl Peer {
 
         // Armed from here: if this future is dropped or times out before the
         // response lands, the guard cleans up and cancels.
-        let guard = RequestGuard {
+        let mut guard = RequestGuard {
             peer: self.clone(),
             id: id.clone(),
+            method: method.clone(),
             armed: true,
+            timed_out: false,
         };
 
         if self
@@ -211,6 +287,10 @@ impl Peer {
             Some(limit) => match tokio::time::timeout(limit, rx).await {
                 Ok(received) => received,
                 Err(_) => {
+                    // Still armed, and flagged, so the guard fires on the way
+                    // out and the hook can tell a deadline from a dropped
+                    // future.
+                    guard.timed_out = true;
                     return Err(RpcError::timeout(format!("no response within {limit:?}")));
                 }
             },
@@ -218,7 +298,6 @@ impl Peer {
         };
 
         // The response landed, so there is nothing left to cancel.
-        let mut guard = guard;
         guard.armed = false;
 
         outcome.unwrap_or_else(|_| Err(RpcError::transport_closed()))
@@ -346,7 +425,9 @@ impl Peer {
 struct RequestGuard {
     peer: Peer,
     id: Id,
+    method: String,
     armed: bool,
+    timed_out: bool,
 }
 
 impl Drop for RequestGuard {
@@ -364,11 +445,18 @@ impl Drop for RequestGuard {
         if !self.armed {
             return;
         }
-        // Best effort: tell the peer to stop. No pending slot is registered for
-        // the ack, so if the peer answers, the reader drops it.
-        if let Some(method) = &self.peer.0.cancel_method {
-            self.peer
-                .notify(method.clone(), serde_json::json!({ "id": self.id }));
+        // The protocol decides what abandonment means on the wire: whether to
+        // send anything, a notification or a request, and for which methods.
+        // Lanok only notices and hands over the id.
+        if let Some(hook) = &self.peer.0.on_abandon {
+            hook(
+                &self.peer,
+                &Abandoned {
+                    id: self.id.clone(),
+                    method: self.method.clone(),
+                    timed_out: self.timed_out,
+                },
+            );
         }
     }
 }

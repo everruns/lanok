@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Cancellation is a hook, not a setting.** `PeerBuilder::on_abandon` hands the
+  protocol the abandoned request's id and method, and whether the caller timed
+  out or dropped, and lets it decide what goes on the wire. The old
+  `cancel_notification(name)` encoded one protocol's answer as the contract:
+  always a notification, always `{"id": n}`, always armed for every request.
+  mira needs an acknowledged request armed per method and gated on a
+  capability; LSP and MCP each differ again. `cancel_notification` remains as a
+  convenience over the hook.
+
 - **`RpcError::retryable` is a top-level field**, not a key inside `data`. It
   is omitted when false, so it changes no existing wire. The original placement
   argued that JSON-RPC enumerates the members of an error object; the spec says

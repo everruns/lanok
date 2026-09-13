@@ -193,6 +193,102 @@ async fn abandoning_a_request_cancels_it_on_the_peer() {
 }
 
 #[tokio::test]
+async fn abandonment_can_send_a_request_and_gate_on_the_method() {
+    // The shape a single cancel-method name could not express, and the reason
+    // the hook exists: mira's cancel is an acknowledged *request*, armed only
+    // for cancelable methods, and only when the peer advertised it.
+    let cancelled: Arc<std::sync::Mutex<Vec<String>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = cancelled.clone();
+
+    let (ta, tb) = duplex();
+    let server = Router::new()
+        .on_request("run", |_| async move {
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            Ok(Value::Null)
+        })
+        .on_request("list", |_| async move {
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            Ok(Value::Null)
+        })
+        .on_request("cancel", move |params| {
+            let seen = seen.clone();
+            async move {
+                seen.lock().unwrap().push(params["id"].to_string());
+                // Acknowledged, unlike a notification.
+                Ok(json!({ "cancelled": true }))
+            }
+        });
+
+    let client = Peer::builder()
+        .request_timeout(Duration::from_millis(100))
+        .on_abandon(Arc::new(
+            |peer: &Peer, abandoned: &lanok_peer::Abandoned| {
+                if !peer.supports("cancel") || abandoned.method != "run" {
+                    return;
+                }
+                let peer = peer.clone();
+                let id = abandoned.id.clone();
+                tokio::spawn(async move {
+                    let _ = peer.request("cancel", json!({ "id": id })).await;
+                });
+            },
+        ))
+        .connect(ta);
+    let _server = Peer::builder()
+        .handler(server)
+        .serve_handshake(Hello::new("study", v(1, 0)).capability("cancel"))
+        .connect(tb);
+
+    client
+        .handshake(&Hello::new("host", v(1, 0)), Negotiation::new(v(1, 0)))
+        .await
+        .unwrap();
+
+    // `list` is not cancelable, so abandoning it must stay silent.
+    let _ = client.request("list", Value::Null).await;
+    // `run` is.
+    let _ = client.request("run", Value::Null).await;
+
+    for _ in 0..100 {
+        if !cancelled.lock().unwrap().is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let sent = cancelled.lock().unwrap().clone();
+    assert_eq!(
+        sent.len(),
+        1,
+        "only the cancelable method is cancelled: {sent:?}"
+    );
+}
+
+#[tokio::test]
+async fn abandonment_says_whether_the_caller_timed_out() {
+    let reasons: Arc<std::sync::Mutex<Vec<bool>>> = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let seen = reasons.clone();
+
+    let (ta, tb) = duplex();
+    let client = Peer::builder()
+        .request_timeout(Duration::from_millis(50))
+        .on_abandon(Arc::new(
+            move |_: &Peer, abandoned: &lanok_peer::Abandoned| {
+                seen.lock().unwrap().push(abandoned.timed_out);
+            },
+        ))
+        .connect(ta);
+    let _server = Peer::builder()
+        .handler(Router::new().on_request("slow", |_| async move {
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            Ok(Value::Null)
+        }))
+        .connect(tb);
+
+    let _ = client.request("slow", Value::Null).await;
+    assert_eq!(reasons.lock().unwrap().as_slice(), &[true]);
+}
+
+#[tokio::test]
 async fn the_handshake_records_version_and_capabilities() {
     let (ta, tb) = duplex();
     let client = Peer::builder().connect(ta);

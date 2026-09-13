@@ -1,5 +1,18 @@
 # Knowledge Log
 
+## 2026-09-13, Cancellation is a hook, not a setting
+
+- `cancel_notification(name)` encoded one protocol's answer as the contract:
+  always a notification, always `{"id": n}`, always armed. mira needs an
+  acknowledged request, armed per method and gated on a capability; LSP and MCP
+  each differ again. Replaced by [`AbandonHook`], which hands the protocol the
+  id, the method, and whether the caller timed out, and lets it decide what to
+  send. `cancel_notification` remains as a convenience over it.
+- The rule this generalizes into, now in [architecture](specs/architecture.md):
+  if two real protocols would fill a knob differently, it is not a knob, it is
+  a hook. A configuration option only one consumer can use is a guess wearing
+  an API.
+
 ## 2026-09-13, lanok-core must not impose serde_json features
 
 - Found while adopting lanok-core in mira: enabling `preserve_order` on

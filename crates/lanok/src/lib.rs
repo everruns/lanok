@@ -70,7 +70,9 @@ pub use lanok_core::{
 pub use lanok_peer::{Context, Hello, INITIALIZE, INITIALIZED, SimpleServer};
 
 #[cfg(feature = "async")]
-pub use lanok_peer::{Handler, HandlerFuture, NoHandler, Peer, PeerBuilder, PeerInfo, Router};
+pub use lanok_peer::{
+    AbandonHook, Abandoned, Handler, HandlerFuture, NoHandler, Peer, PeerBuilder, PeerInfo, Router,
+};
 
 #[cfg(feature = "async")]
 pub use lanok_transport::{
