@@ -1,5 +1,17 @@
 # Knowledge Log
 
+## 2026-09-13, Documentation surfaces and the diagram convention
+
+- [Documentation](specs/documentation.md): five surfaces, each owning something
+  the others do not, and the rule that `README.md` and `docs/` never link into
+  `knowledge/`. The wire has two descriptions on purpose, one normative and one
+  readable, and they move together.
+- Diagrams are committed SVG under `docs/assets/`. The constraint worth writing
+  down is that GitHub renders one file on both a white and a near-black page,
+  so every text element sits on a fill the diagram draws. Free-floating slate
+  labels read on one theme and disappear on the other, which makes a diagram
+  silently useless for half its readers.
+
 ## 2026-09-13, Python and TypeScript became full peers
 
 - [SDKs](specs/sdks.md): both runtimes now ship a symmetric `Peer` alongside the

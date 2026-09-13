@@ -69,6 +69,9 @@ let peer = Peer::builder()
 
 The server asks the client something, mid-handler, on the same connection:
 
+<img src="assets/lanok-peer.svg" alt="Two peers over one connection: peer A sends echo and ping and answers ui/ask, while peer B sends ui/ask and answers echo and ping, so requests and responses flow in both directions at once" width="720" />
+
+
 ```rust
 #[lanok::async_trait]
 impl ResponderHandler for MyServer {

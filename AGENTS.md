@@ -92,6 +92,7 @@ the task touches. New code complies with them or proposes a change there.
 | [architecture](knowledge/specs/architecture.md) | Crate split, the symmetric peer, transports, why the seams sit where they do |
 | [protocol-contract](knowledge/specs/protocol-contract.md) | Versioning, capability negotiation, forward-compat rules every lanok protocol inherits |
 | [sdks](knowledge/specs/sdks.md) | Python and TypeScript runtimes, codegen, the drift guard |
+| [documentation](knowledge/specs/documentation.md) | Which surface owns which fact, and the committed-SVG diagram convention |
 | [release-process](knowledge/specs/release-process.md) | Versioning, crates.io publishing flow |
 
 When a change alters durable architecture, policy, or process, update the

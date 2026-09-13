@@ -24,5 +24,7 @@ bundle.
 
 ## Engineering processes
 
+- [Documentation](specs/documentation.md), which surface owns which fact, and
+  the committed-SVG diagram convention.
 - [Release process](specs/release-process.md), versioning across the workspace
   and both SDKs, and the crates.io publishing flow.
