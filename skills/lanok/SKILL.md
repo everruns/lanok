@@ -40,7 +40,11 @@ lanok::protocol! {
     responder notify "echo/progress" progress(ProgressParams);
     responder fn "ui/ask" ui_ask(AskParams) -> AskResult requires "ui_ask";
 
-    capabilities { ui_ask }
+    capabilities {
+        /// What advertising this token promises. The doc lands on
+        /// `capability::UI_ASK`.
+        ui_ask,
+    }
 }
 ```
 

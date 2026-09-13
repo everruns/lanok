@@ -17,7 +17,11 @@ lanok::protocol! {
     responder notify "echo/progress" progress(ProgressParams);
     responder fn "ui/ask" ui_ask(AskParams) -> AskResult requires "ui_ask";
 
-    capabilities { ui_ask }
+    capabilities {
+        /// The caller answers `ui/ask`, so the responder may turn the
+        /// connection around mid-request.
+        ui_ask,
+    }
 }
 ```
 
@@ -79,14 +83,21 @@ something.
 A gated *notification* is dropped instead of refused: a notification carries no
 id, so there is nobody to report a refusal to.
 
+Document each token. A capability token is a promise about behaviour, not a
+label, and the promise is the part an implementor on the other side of the wire
+needs. The doc comment in the `capabilities` block becomes the doc on
+`capability::UI_ASK`, so the declaration stays the one place that says what
+advertising it means.
+
 ## What the macro rejects
 
 These are compile errors because each of them otherwise produces something
 subtly wrong:
 
 - **A duplicate method.** Two declarations, one wire name.
-- **Declaring `initialize` or `initialized`.** They are the shared handshake;
-  shadowing them shadows version and capability negotiation.
+- **A duplicate capability token.** The second doc comment would be silently
+  dropped, and the clash would otherwise surface as two consts of the same name
+  in generated code rather than on the line that wrote it.
 - **A notification with a result.** It carries no id, so there is nothing to
   answer.
 - **A `min` that is not a possible minimum**: a different major (peers across a

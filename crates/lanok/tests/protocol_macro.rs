@@ -45,7 +45,11 @@ lanok::protocol! {
     /// A method with neither params nor result.
     initiator fn ping();
 
-    capabilities { ui_ask }
+    capabilities {
+        /// The caller answers `ui/ask`, so the responder may turn the
+        /// connection around mid-request.
+        ui_ask,
+    }
 }
 
 #[test]

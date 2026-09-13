@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Documented capability tokens.** `capabilities { ... }` accepts a doc
+  comment per token, and the declaration's prose becomes the generated const's
+  doc rather than a generated one-liner. A capability token is a promise about
+  behaviour, and that promise is what the other side needs; without this, moving
+  a protocol's tokens into `protocol!` traded its own prose for a placeholder. A
+  token declared twice is now rejected on the declaration instead of failing as
+  a duplicate const in generated code.
 - **Interop test against `rmcp`**, the official Rust MCP SDK: the MCP
   declaration in `experiments/foreign-protocols/` now holds a full session with
   a real third-party implementation, covering the handshake, `ping`,

@@ -64,15 +64,27 @@ pub fn expand(protocol: Protocol) -> TokenStream {
         }
     });
 
-    let capability_consts = capabilities.iter().map(|token| {
+    // A token's doc is the protocol's own prose about what advertising it
+    // promises. Generating a placeholder over the top of it would make moving
+    // tokens into `protocol!` a downgrade, so the declaration's doc wins and
+    // the placeholder is only the fallback.
+    let capability_consts = capabilities.iter().map(|capability| {
+        let token = &capability.token;
         let ident = format_ident!("{}", token.to_uppercase());
-        let doc = format!("The `{token}` capability token.");
+        let doc = if capability.doc.is_empty() {
+            format!("The `{token}` capability token.")
+        } else {
+            capability.doc.clone()
+        };
         quote! {
             #[doc = #doc]
             pub const #ident: &str = #token;
         }
     });
-    let capability_list = capabilities.iter().map(|c| quote!(#c));
+    let capability_list = capabilities.iter().map(|c| {
+        let token = &c.token;
+        quote!(#token)
+    });
 
     let initiator_stubs = stubs(&methods, Direction::Initiator);
     let responder_stubs = stubs(&methods, Direction::Responder);
@@ -543,3 +555,62 @@ fn result_type(method: &Method) -> TokenStream {
 
 #[allow(dead_code)]
 fn unused(_: &Ident) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Expanding is the only place a capability's doc becomes observable: doc
+    /// comments do not survive to runtime, so a test on the generated tokens
+    /// is what keeps the declaration's prose from being replaced by a
+    /// generated one-liner.
+    #[test]
+    fn a_capability_const_carries_the_declared_doc() {
+        let declaration: crate::parse::Protocol = syn::parse_quote! {
+            name    = "p";
+            version = "1.0";
+
+            initiator fn go() requires "streaming";
+
+            capabilities {
+                /// The peer streams partial results while a call is open.
+                streaming,
+            }
+        };
+        let expanded = expand(declaration).to_string();
+        assert!(
+            expanded.contains("The peer streams partial results while a call is open."),
+            "the declared doc should reach the generated const"
+        );
+    }
+
+    /// Without a doc, the placeholder still describes the token, so an
+    /// undocumented declaration does not become an undocumented public const.
+    #[test]
+    fn an_undocumented_capability_still_gets_a_doc() {
+        let declaration: crate::parse::Protocol = syn::parse_quote! {
+            name    = "p";
+            version = "1.0";
+
+            initiator fn go() requires "streaming";
+
+            capabilities { streaming }
+        };
+        let expanded = expand(declaration).to_string();
+        assert!(expanded.contains("The `streaming` capability token."));
+    }
+
+    #[test]
+    fn a_capability_declared_twice_is_rejected_on_the_declaration() {
+        let error = match syn::parse_str::<crate::parse::Protocol>(
+            r#"name = "p"; version = "1.0"; capabilities { a, a }"#,
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("a duplicate token must not parse"),
+        };
+        assert!(
+            error.to_string().contains("declared twice"),
+            "unexpected error: {error}"
+        );
+    }
+}

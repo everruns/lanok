@@ -8,7 +8,11 @@
 //! name    = "echo";
 //! version = "1.1";
 //! min     = "1.0";                       // optional, defaults to MAJOR.0
-//! capabilities { tools, ui_ask };        // optional
+//! capabilities {                         // optional
+//!     /// Doc comments ride along onto the generated const.
+//!     tools,
+//!     ui_ask,
+//! };
 //!
 //! /// Doc comments ride along into meta.json.
 //! initiator fn echo(EchoParams) -> EchoResult;
@@ -58,11 +62,36 @@ pub struct Method {
     pub span: Span,
 }
 
+/// A capability token, and what advertising it means.
+///
+/// The doc is not decoration. A capability token is a promise about behaviour
+/// ("this study honours `trial`/`seed` so repetitions are reproducible"), and
+/// that promise is the part an implementor on the other side of the wire needs.
+/// Carrying it here is what lets a protocol move its tokens into `protocol!`
+/// without trading its own prose for a generated one-liner.
+pub struct Capability {
+    pub doc: String,
+    pub token: String,
+    pub span: Span,
+}
+
+impl Parse for Capability {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let attrs = input.call(Attribute::parse_outer)?;
+        let ident: Ident = input.parse()?;
+        Ok(Capability {
+            doc: doc_of(&attrs),
+            token: ident.to_string(),
+            span: ident.span(),
+        })
+    }
+}
+
 pub struct Protocol {
     pub name: String,
     pub version: (u32, u32),
     pub min_version: (u32, u32),
-    pub capabilities: Vec<String>,
+    pub capabilities: Vec<Capability>,
     pub methods: Vec<Method>,
 }
 
@@ -108,7 +137,7 @@ impl Parse for Protocol {
         let mut name: Option<String> = None;
         let mut version: Option<(u32, u32)> = None;
         let mut min_version: Option<(u32, u32)> = None;
-        let mut capabilities: Vec<String> = Vec::new();
+        let mut capabilities: Vec<Capability> = Vec::new();
         let mut methods: Vec<Method> = Vec::new();
 
         while !input.is_empty() {
@@ -148,8 +177,8 @@ impl Parse for Protocol {
                 let _: Ident = input.parse()?;
                 let inner;
                 braced!(inner in input);
-                let tokens = Punctuated::<Ident, Token![,]>::parse_terminated(&inner)?;
-                capabilities.extend(tokens.into_iter().map(|i| i.to_string()));
+                let tokens = Punctuated::<Capability, Token![,]>::parse_terminated(&inner)?;
+                capabilities.extend(tokens);
                 // The trailing semicolon is optional: a braced block reads
                 // complete without one, and requiring it is a papercut.
                 if input.peek(Token![;]) {
@@ -281,7 +310,7 @@ fn validate(
     name: &str,
     version: (u32, u32),
     min_version: (u32, u32),
-    capabilities: &[String],
+    capabilities: &[Capability],
     methods: &[Method],
 ) -> syn::Result<()> {
     let at = |span| syn::Error::new(span, String::new());
@@ -312,6 +341,21 @@ fn validate(
         ));
     }
 
+    // A token declared twice is a copy-paste, and the second doc comment would
+    // be silently dropped: two consts of the same name do not compile, but the
+    // error lands on generated code rather than on the declaration.
+    for (index, capability) in capabilities.iter().enumerate() {
+        if capabilities[..index]
+            .iter()
+            .any(|c| c.token == capability.token)
+        {
+            return Err(syn::Error::new(
+                capability.span,
+                format!("capability `{}` is declared twice", capability.token),
+            ));
+        }
+    }
+
     for (index, method) in methods.iter().enumerate() {
         if methods[..index]
             .iter()
@@ -330,7 +374,7 @@ fn validate(
         // A capability that is never declared is almost always a typo, and it
         // fails closed at runtime: the method silently becomes unavailable.
         if let Some(token) = &method.requires
-            && !capabilities.iter().any(|c| c == token)
+            && !capabilities.iter().any(|c| c.token == *token)
         {
             return Err(syn::Error::new(
                 method.span,
@@ -381,7 +425,12 @@ mod tests {
         assert_eq!(protocol.name, "echo");
         assert_eq!(protocol.version, (1, 2));
         assert_eq!(protocol.min_version, (1, 1));
-        assert_eq!(protocol.capabilities, ["ui_ask"]);
+        let tokens: Vec<&str> = protocol
+            .capabilities
+            .iter()
+            .map(|c| c.token.as_str())
+            .collect();
+        assert_eq!(tokens, ["ui_ask"]);
         assert_eq!(protocol.methods.len(), 4);
 
         let echo = &protocol.methods[0];
