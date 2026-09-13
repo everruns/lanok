@@ -20,16 +20,18 @@ async = ["lanok-peer/async", "dep:lanok-transport", "dep:async-trait"]
 # The `protocol!` declaration macro.
 macros = ["dep:lanok-macros"]
 # JSON Schema derives on the wire types, for artifact generation.
-schema = ["lanok-core/schema", "lanok-peer/schema"]
+schema = ["lanok-core/schema", "lanok-peer/schema", "dep:lanok-schema"]
 
 [dependencies]
 lanok-core.workspace = true
 lanok-peer.workspace = true
 lanok-transport = { workspace = true, optional = true }
 lanok-macros = { workspace = true, optional = true }
+lanok-schema = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 serde_json.workspace = true
 
 [dev-dependencies]
 serde.workspace = true
+schemars.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }

@@ -1,0 +1,35 @@
+{
+  "name": "echo",
+  "version": "1.0",
+  "min_version": "1.0",
+  "methods": [
+    {
+      "name": "echo",
+      "direction": "initiator",
+      "kind": "request",
+      "doc": "Transform some text and hand it back."
+    },
+    {
+      "name": "ping",
+      "direction": "initiator",
+      "kind": "request",
+      "doc": "Liveness check. No params, no result."
+    },
+    {
+      "name": "echo/progress",
+      "direction": "responder",
+      "kind": "notification",
+      "doc": "Progress while an `echo` is still open."
+    },
+    {
+      "name": "ui/ask",
+      "direction": "responder",
+      "kind": "request",
+      "doc": "Ask the caller a question and wait for the answer. The reverse direction: the responder is the one making the request.",
+      "requires": "ui_ask"
+    }
+  ],
+  "capabilities": [
+    "ui_ask"
+  ]
+}

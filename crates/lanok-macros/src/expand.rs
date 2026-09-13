@@ -94,6 +94,7 @@ pub fn expand(protocol: Protocol) -> TokenStream {
 
     let initiator_api = api_trait(&methods, Direction::Initiator, "InitiatorApi");
     let responder_api = api_trait(&methods, Direction::Responder, "ResponderApi");
+    let schema_document = schema_document(&methods);
 
     let name_doc = format!("The `{name}` protocol, version {major}.{minor}.");
 
@@ -139,6 +140,43 @@ pub fn expand(protocol: Protocol) -> TokenStream {
         #initiator_handlers
         #responder_dispatch
         #initiator_dispatch
+        #schema_document
+    }
+}
+
+/// The generated schema builder.
+///
+/// Emitting the calls from the same declaration that emits the stubs is what
+/// makes drift impossible rather than merely discouraged: a method cannot be
+/// added to the protocol without appearing in the artifact.
+///
+/// It sits behind the *protocol crate's* own `schema` feature, so a crate that
+/// only wants wire types never compiles schemars. That crate declares
+/// `schema = ["lanok/schema", ...]`; the builder is reached through the facade,
+/// so there is no second dependency to keep version-matched.
+fn schema_document(methods: &[Method]) -> TokenStream {
+    let calls = methods.iter().map(|m| {
+        let wire = &m.wire_name;
+        match (&m.params, &m.result, m.expects_response) {
+            (Some(params), Some(result), true) => {
+                quote!(.request::<#params, #result>(#wire))
+            }
+            (Some(params), None, true) => quote!(.request_params::<#params>(#wire)),
+            (None, Some(result), true) => quote!(.request_result::<#result>(#wire)),
+            (None, None, true) => quote!(.request_bare(#wire)),
+            (Some(params), _, false) => quote!(.notification::<#params>(#wire)),
+            (None, _, false) => quote!(.notification_bare(#wire)),
+        }
+    });
+
+    quote! {
+        /// The protocol's schema and vocabulary artifacts, generated from this
+        /// declaration. Feed it to `lanok_schema::Artifacts`.
+        #[cfg(feature = "schema")]
+        pub fn schema_document() -> ::lanok::schema::Document {
+            ::lanok::schema::Document::new(META)
+                #(#calls)*
+        }
     }
 }
 

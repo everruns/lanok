@@ -7,23 +7,23 @@ use lanok::prelude::*;
 use lanok::{Direction, MethodKind, codes, duplex};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct EchoParams {
     pub text: String,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct EchoResult {
     pub text: String,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AskParams {
     pub question: String,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct AskResult {
     pub answer: String,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ProgressParams {
     pub step: u32,
 }
@@ -72,6 +72,29 @@ fn the_vocabulary_is_available_as_data() {
     );
     assert!(META.is_bidirectional());
     assert_eq!(META.capabilities, &["ui_ask"]);
+}
+
+#[test]
+fn the_declaration_also_generates_its_schema_artifacts() {
+    // Same declaration, same method list: this is what makes drift impossible
+    // rather than merely discouraged.
+    let document = schema_document();
+    let schema = document.schema();
+
+    assert_eq!(schema["protocol"], "echo");
+    assert_eq!(schema["version"], "1.2");
+    for declared in META.methods {
+        assert!(
+            schema["messages"].get(declared.name).is_some(),
+            "`{}` is declared but missing from schema.json",
+            declared.name
+        );
+    }
+    // A method with neither params nor result still appears, so the artifact
+    // lists the whole vocabulary rather than only the interesting parts.
+    assert!(schema["messages"]["ping"].as_object().unwrap().is_empty());
+    assert!(schema["messages"]["echo"]["params"].is_object());
+    assert!(schema["$defs"]["EchoParams"].is_object());
 }
 
 #[test]

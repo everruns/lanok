@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "echo protocol",
+  "protocol": "echo",
+  "version": "1.0",
+  "messages": {
+    "echo": {
+      "params": {
+        "$ref": "#/$defs/EchoParams"
+      },
+      "result": {
+        "$ref": "#/$defs/EchoResult"
+      }
+    },
+    "echo/progress": {
+      "params": {
+        "$ref": "#/$defs/ProgressParams"
+      }
+    },
+    "ping": {},
+    "ui/ask": {
+      "params": {
+        "$ref": "#/$defs/AskParams"
+      },
+      "result": {
+        "$ref": "#/$defs/AskResult"
+      }
+    }
+  },
+  "$defs": {
+    "EchoParams": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The text to transform."
+        },
+        "shout": {
+          "type": "boolean",
+          "description": "Uppercase it. Defaults to false, like every optional lanok field, so a\npeer that predates this field still parses.",
+          "default": false
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "EchoResult": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "ProgressParams": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "of": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "step",
+        "of"
+      ]
+    },
+    "AskParams": {
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "question"
+      ]
+    },
+    "AskResult": {
+      "type": "object",
+      "properties": {
+        "answer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "answer"
+      ]
+    }
+  }
+}

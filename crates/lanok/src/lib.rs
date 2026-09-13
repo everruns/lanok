@@ -12,15 +12,15 @@
 //!
 //! ```
 //! # use serde::{Deserialize, Serialize};
-//! #[derive(Serialize, Deserialize)]
-//! pub struct EchoParams { pub text: String }
-//! #[derive(Serialize, Deserialize)]
-//! pub struct EchoResult { pub text: String }
-//! #[derive(Serialize, Deserialize)]
-//! pub struct AskParams { pub question: String }
-//! #[derive(Serialize, Deserialize)]
-//! pub struct AskResult { pub answer: String }
-//!
+//! # // Ordinary serde payload types; nothing lanok-specific about them.
+//! # #[derive(Serialize, Deserialize, schemars::JsonSchema)]
+//! # pub struct EchoParams { pub text: String }
+//! # #[derive(Serialize, Deserialize, schemars::JsonSchema)]
+//! # pub struct EchoResult { pub text: String }
+//! # #[derive(Serialize, Deserialize, schemars::JsonSchema)]
+//! # pub struct AskParams { pub question: String }
+//! # #[derive(Serialize, Deserialize, schemars::JsonSchema)]
+//! # pub struct AskResult { pub answer: String }
 //! lanok::protocol! {
 //!     name    = "echo";
 //!     version = "1.0";
@@ -85,6 +85,12 @@ pub use serde_json::{from_value, to_value};
 
 #[cfg(feature = "macros")]
 pub use lanok_macros::protocol;
+
+/// Artifact generation. Generated `schema_document()` refers to this path, so a
+/// protocol crate takes one dependency (`lanok`, with the `schema` feature)
+/// rather than two that must stay version-matched.
+#[cfg(feature = "schema")]
+pub use lanok_schema as schema;
 
 /// Everything a protocol crate typically imports.
 pub mod prelude {

@@ -1,0 +1,36 @@
+[package]
+name = "echo-protocol"
+description = "The worked example protocol for lanok: two directions, a capability, and committed artifacts."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[features]
+# On by default here because the schema-gen binary is part of the example, and
+# the drift guard must run in the normal `cargo test` path.
+default = ["schema"]
+schema = ["dep:schemars", "lanok/schema"]
+
+[dependencies]
+lanok.workspace = true
+schemars = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process", "time"] }
+
+[[bin]]
+name = "echo-server"
+path = "src/bin/server.rs"
+
+[[bin]]
+name = "echo-client"
+path = "src/bin/client.rs"
+
+[[bin]]
+name = "echo-schema-gen"
+path = "src/bin/schema_gen.rs"
+required-features = ["schema"]
