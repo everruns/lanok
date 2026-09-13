@@ -10,7 +10,7 @@
 //! is not a sample size worth overruling.
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 /// Error codes. The reserved range is JSON-RPC's; the rest are lanok's, chosen
 /// outside it so they cannot collide with a future reserved assignment.
@@ -147,6 +147,8 @@ impl std::error::Error for RpcError {}
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
     #[test]
