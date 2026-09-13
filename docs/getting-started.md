@@ -132,3 +132,4 @@ TypeScript implementation, which is what keeps them first-class.
   and capabilities.
 - [Servers and peers](servers.md) for when `SimpleServer` is not enough.
 - [The wire](wire.md) for the compatibility rules your protocol inherits.
+- [Python and TypeScript](sdks.md) for writing either end in another language.

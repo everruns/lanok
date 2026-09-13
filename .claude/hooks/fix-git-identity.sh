@@ -9,7 +9,7 @@
 # Co-authored-by trailer on the squash commit on main.
 #
 # This script runs once per session start. It only overrides the identity
-# when the current value is missing or matches a known agent pattern —
+# when the current value is missing or matches a known agent pattern:
 # real human identities are left alone, so a contributor running Mira
 # locally with their own git config is unaffected.
 

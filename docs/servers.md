@@ -103,6 +103,11 @@ period to exit, kills only if it overstays, then waits for the stderr drain. The
 last step is what puts a dying server's final log lines in front of whoever is
 debugging it.
 
+## Other languages
+
+Python and TypeScript ship the same pair, and either can be either end of a
+connection. See [Python and TypeScript](sdks.md).
+
 ## Testing
 
 `duplex()` connects two peers in memory, so a host and a server, including a
