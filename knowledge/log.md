@@ -1,5 +1,20 @@
 # Knowledge Log
 
+## 2026-09-13, lanok-core must not impose serde_json features
+
+- Found while adopting lanok-core in mira: enabling `preserve_order` on
+  serde_json in lanok's workspace switched *mira's* `serde_json::Map` from
+  sorted to insertion order, because cargo unifies features across the whole
+  dependency graph. Every committed schema artifact in mira reordered, with
+  identical content.
+- A wire-types crate has no business changing how its consumers serialize JSON.
+  `preserve_order` is gone, and the rule generalizes: a feature lanok-core
+  enables on a shared dependency is a feature it imposes on every downstream
+  crate. See [architecture](specs/architecture.md).
+- A lanok-core test had been asserting JSON key *order*, which only held while
+  `preserve_order` was on. The contract is the key set; object order is not
+  meaningful in JSON.
+
 ## 2026-09-13, Documentation surfaces and the diagram convention
 
 - [Documentation](specs/documentation.md): five surfaces, each owning something

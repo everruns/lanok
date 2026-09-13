@@ -26,15 +26,15 @@ class AskResult(TypedDict):
     answer: str
 
 class EchoParams(TypedDict):
-    text: str
     shout: NotRequired[bool]
+    text: str
 
 class EchoResult(TypedDict):
     text: str
 
 class ProgressParams(TypedDict):
-    step: int
     of: int
+    step: int
 
 # Every method, with the direction it flows and what it needs.
 METHODS: dict[str, dict[str, Any]] = {

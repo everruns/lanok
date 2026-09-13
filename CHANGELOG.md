@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `lanok-core` no longer enables `serde_json/preserve_order`. Cargo unifies
+  features across the dependency graph, so it was imposing insertion-ordered
+  JSON maps on every consumer: taking the dependency reordered every schema
+  artifact mira generates, with identical content. Found while adopting
+  lanok-core in mira.
+
 - `Artifacts::run_cli` no longer takes a regenerate-command string. The command
   a drift failure tells the reader to run is derived from the generator
   binary's own name, so it is correct in any project without being configured.

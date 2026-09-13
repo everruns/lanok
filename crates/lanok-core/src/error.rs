@@ -169,9 +169,12 @@ mod tests {
         assert!(error.is_retryable());
 
         let wire = serde_json::to_value(&error).unwrap();
-        // Strictly conformant: code, message, data and nothing else.
-        let keys: Vec<_> = wire.as_object().unwrap().keys().cloned().collect();
-        assert_eq!(keys, vec!["code", "message", "data"]);
+        // Strictly conformant: code, message, data and nothing else. The *set*
+        // of keys is the contract; JSON object order is not meaningful, and
+        // asserting it only passed while serde_json ran with `preserve_order`.
+        let mut keys: Vec<_> = wire.as_object().unwrap().keys().cloned().collect();
+        keys.sort();
+        assert_eq!(keys, vec!["code", "data", "message"]);
 
         let back: RpcError = serde_json::from_value(wire).unwrap();
         assert!(back.is_retryable());

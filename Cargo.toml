@@ -36,7 +36,13 @@ lanok-clap = { version = "0.1.0", path = "crates/lanok-clap" }
 
 # Serialization. The wire is JSON, so serde is the one dependency the core takes.
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+# No `preserve_order`. Cargo unifies features across the whole dependency
+# graph, so enabling it here would switch every downstream crate's
+# `serde_json::Map` from sorted to insertion order, silently reordering JSON
+# that crate emits. A wire-types crate has no business imposing that on its
+# consumers; found while adopting lanok-core in mira, where it reordered every
+# committed schema artifact.
+serde_json = "1"
 # JSON Schema generation, behind the optional `schema` feature only.
 schemars = "1"
 

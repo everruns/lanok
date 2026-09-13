@@ -27,11 +27,11 @@ export interface AskResult {
 }
 
 export interface EchoParams {
-  /** The text to transform. */
-  text: string;
   /** Uppercase it. Defaults to false, like every optional lanok field, so a
 peer that predates this field still parses. */
   shout?: boolean;
+  /** The text to transform. */
+  text: string;
 }
 
 export interface EchoResult {
@@ -39,8 +39,8 @@ export interface EchoResult {
 }
 
 export interface ProgressParams {
-  step: number;
   of: number;
+  step: number;
 }
 
 /** Every method, with the direction it flows and what it needs. */

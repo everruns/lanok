@@ -42,6 +42,13 @@ The split is driven by two audiences that must not pay for each other:
   runtime, or a schema generator. Hence `lanok-core` at serde, with schemars
   behind an optional feature. CI asserts this directly by inspecting the
   dependency graph rather than trusting review.
+
+  The rule covers *features*, not only dependencies. Cargo unifies features
+  across the whole graph, so a feature `lanok-core` enables on a shared crate
+  is one it imposes on every consumer. `serde_json/preserve_order` was enabled
+  here once and silently reordered every JSON artifact mira generated, with
+  identical content, the moment mira took the dependency. Enable nothing on a
+  shared dependency that the core does not itself require.
 - **An extension author writing forty lines of handler** must not compile an
   async runtime. Hence `SimpleServer` in `lanok-peer` behind default features,
   with tokio arriving only with the `async` feature.
