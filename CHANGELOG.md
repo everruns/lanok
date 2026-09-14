@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **One representation of the peer's handshake.** `Peer` stored the handshake
+  in a `PeerInfo` summary that carried name, version and capabilities, and
+  `SimpleServer` handed handlers the `Hello` itself. Two types for one fact,
+  and the summary was lossy: `Hello::info` is the free-form field a protocol
+  puts everything else in, and every path through the async peer dropped it,
+  the handshake it sent and the one it served alike. `PeerInfo` is gone;
+  `Peer::peer_info` and `Peer::record_peer` speak `Hello`. `peer_info` returns
+  `Option<Hello>`, so "the handshake has not happened" is now distinct from
+  "a peer that named itself the empty string".
+
 ### Added
 
 - **`MethodMeta` carries each method's payload type names**, so `meta.json`

@@ -32,4 +32,4 @@ mod peer;
 #[cfg(feature = "async")]
 pub use handler::{Handler, HandlerFuture, NoHandler, Router};
 #[cfg(feature = "async")]
-pub use peer::{AbandonHook, Abandoned, Peer, PeerBuilder, PeerInfo};
+pub use peer::{AbandonHook, Abandoned, Peer, PeerBuilder};

@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
-use lanok_core::{Capabilities, Id, IdAllocator, Message, RpcError, Value, Version};
+use lanok_core::{Id, IdAllocator, Message, RpcError, Value};
 use lanok_transport::Transport;
 use tokio::sync::{Notify, mpsc, oneshot};
 
@@ -64,14 +64,6 @@ pub struct Abandoned {
 /// or spawn for anything that needs to await.
 pub type AbandonHook = Arc<dyn Fn(&Peer, &Abandoned) + Send + Sync>;
 
-/// What the peer learned about the other side during the handshake.
-#[derive(Clone, Debug, Default)]
-pub struct PeerInfo {
-    pub name: String,
-    pub version: Option<Version>,
-    pub capabilities: Capabilities,
-}
-
 struct Inner {
     outbound: mpsc::UnboundedSender<Message>,
     /// `None` once the connection has ended, which is how a late caller learns
@@ -80,7 +72,10 @@ struct Inner {
     ids: IdAllocator,
     request_timeout: Option<Duration>,
     on_abandon: Option<AbandonHook>,
-    info: Mutex<PeerInfo>,
+    /// The peer's handshake, `None` until it arrives. `Hello` and not a
+    /// reduced copy of it: the protocol's own `info` travels there, and a
+    /// summary struct was quietly dropping it.
+    info: Mutex<Option<Hello>>,
     closed: AtomicBool,
     /// What to answer the handshake request with, when this peer serves one.
     serves_handshake: Option<Hello>,
@@ -256,7 +251,7 @@ impl PeerBuilder {
             ids: IdAllocator::new(),
             request_timeout: self.request_timeout,
             on_abandon: self.on_abandon,
-            info: Mutex::new(PeerInfo::default()),
+            info: Mutex::new(None),
             closed: AtomicBool::new(false),
             serves_handshake: self.serves_handshake,
             handshake_method: self.handshake_method,
@@ -385,11 +380,7 @@ impl Peer {
             ));
         }
 
-        self.set_peer_info(PeerInfo {
-            name: theirs.name.clone(),
-            version: Some(theirs.protocol_version),
-            capabilities: theirs.capabilities.clone(),
-        });
+        self.set_peer_info(theirs.clone());
 
         // Only after accepting: a peer that gets `initialized` has been told the
         // connection is live, and telling it so before the version check would
@@ -423,8 +414,8 @@ impl Peer {
     /// Set for you by [`Peer::handshake`] and by serving one. Public so a
     /// protocol running its own handshake through [`Peer::handshake_with`]
     /// still gets capability gating rather than having to reimplement it.
-    pub fn record_peer(&self, info: PeerInfo) {
-        self.set_peer_info(info);
+    pub fn record_peer(&self, hello: Hello) {
+        self.set_peer_info(hello);
     }
 
     /// Announce that the handshake was accepted, using this peer's configured
@@ -448,17 +439,17 @@ impl Peer {
             .info
             .lock()
             .expect("info lock")
-            .capabilities
-            .supports(token)
+            .as_ref()
+            .is_some_and(|hello| hello.capabilities.supports(token))
     }
 
-    /// What the handshake learned about the other side.
-    pub fn peer_info(&self) -> PeerInfo {
+    /// The peer's handshake, or `None` before it has arrived.
+    pub fn peer_info(&self) -> Option<Hello> {
         self.0.info.lock().expect("info lock").clone()
     }
 
-    pub(crate) fn set_peer_info(&self, info: PeerInfo) {
-        *self.0.info.lock().expect("info lock") = info;
+    pub(crate) fn set_peer_info(&self, hello: Hello) {
+        *self.0.info.lock().expect("info lock") = Some(hello);
     }
 
     /// Whether the connection has ended.
@@ -638,11 +629,7 @@ fn dispatch(message: Message, peer: &Peer, handler: &Arc<dyn Handler>) {
                 .as_ref()
                 .expect("checked by the guard");
             if let Ok(theirs) = serde_json::from_value::<Hello>(params) {
-                peer.set_peer_info(PeerInfo {
-                    name: theirs.name,
-                    version: Some(theirs.protocol_version),
-                    capabilities: theirs.capabilities,
-                });
+                peer.set_peer_info(theirs);
             }
             peer.send_message(match serde_json::to_value(ours) {
                 Ok(value) => Message::result(id, value),

@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use foreign_protocols::mcp::*;
-use lanok::{Capabilities, NdjsonTransport, Peer, PeerInfo, RpcError};
+use lanok::{Capabilities, Hello, NdjsonTransport, Peer, RpcError, Version};
 use rmcp::ServiceExt;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ElicitRequestParams, ElicitationSchema,
@@ -197,6 +197,21 @@ impl InitiatorHandler for Client {
 /// MCP announces capabilities as a nested object; lanok gates on flat tokens.
 /// Flattening is the adopter's job, which is the honest shape: lanok does not
 /// know what a foreign protocol's capability document means.
+/// The peer's handshake, in lanok's shape.
+///
+/// MCP dates its protocol versions ("2025-06-18") where lanok negotiates
+/// MAJOR.MINOR, so there is nothing to put in `protocol_version`: rmcp has
+/// already negotiated, and lanok is only being told what the server can do.
+/// The real version travels in `info`, which is free-form for exactly this.
+fn hello_from(server: &InitializeResult) -> Hello {
+    Hello {
+        name: server.server_info.name.clone(),
+        protocol_version: Version::new(0, 0),
+        capabilities: tokens(server),
+        info: serde_json::json!({ "mcp_protocol_version": server.protocol_version }),
+    }
+}
+
 fn tokens(server: &InitializeResult) -> Capabilities {
     let mut caps = Capabilities::new();
     let advertised = &server.capabilities;
@@ -261,11 +276,7 @@ async fn lanok_holds_a_full_mcp_session_with_rmcp() {
 
     // Feed the negotiated capabilities back in, so the generated `requires`
     // gates answer from what this peer actually advertised.
-    peer.record_peer(PeerInfo {
-        name: server_info.server_info.name.clone(),
-        version: None,
-        capabilities: tokens(&server_info),
-    });
+    peer.record_peer(hello_from(&server_info));
     peer.notify_initialized();
 
     // 2. `ping`, declared `either`. The direction that did not exist in lanok
@@ -339,11 +350,7 @@ async fn an_unadvertised_capability_never_reaches_the_server() {
         implementation("lanok-experiment", "0.0.0"),
     );
     let server_info: InitializeResult = peer.handshake_with("initialize", &ours).await.unwrap();
-    peer.record_peer(PeerInfo {
-        name: server_info.server_info.name.clone(),
-        version: None,
-        capabilities: tokens(&server_info),
-    });
+    peer.record_peer(hello_from(&server_info));
     peer.notify_initialized();
 
     // This server advertises `tools` and nothing else.

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
-use lanok_core::{Capabilities, Negotiation, RpcError, Value, Version, codes};
+use lanok_core::{Negotiation, RpcError, Value, Version, codes};
 use lanok_peer::{Hello, Peer, Router};
 use lanok_transport::duplex;
 use serde_json::json;
@@ -314,7 +314,57 @@ async fn the_handshake_records_version_and_capabilities() {
     assert_eq!(theirs.protocol_version, v(1, 2));
     assert!(client.supports("tools"));
     assert!(!client.supports("ui_ask"));
-    assert_eq!(client.peer_info().version, Some(v(1, 2)));
+    assert_eq!(client.peer_info().unwrap().protocol_version, v(1, 2));
+}
+
+/// `Hello::info` is where a protocol puts everything the handshake needs beyond
+/// version and capabilities, so recording a reduced copy of the handshake threw
+/// away the one field that exists to be protocol-specific.
+#[tokio::test]
+async fn the_handshake_records_the_protocol_s_own_info() {
+    let (ta, tb) = duplex();
+    let client = Peer::builder().connect(ta);
+    let _server = Peer::builder()
+        .handler(Router::new().on_request("initialize", |_| async move {
+            Ok(json!({
+                "name": "test-server",
+                "protocol_version": "1.0",
+                "info": { "evals": 3 },
+            }))
+        }))
+        .connect(tb);
+
+    client
+        .handshake(
+            &Hello::new("test-client", v(1, 0)),
+            Negotiation::new(v(1, 0)),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(client.peer_info().unwrap().info, json!({ "evals": 3 }));
+}
+
+/// The same, for the side that *serves* the handshake rather than sending it.
+#[tokio::test]
+async fn serving_the_handshake_records_the_caller_s_info() {
+    let (ta, tb) = duplex();
+    let server = Peer::builder()
+        .serve_handshake(Hello::new("test-server", v(1, 0)))
+        .connect(tb);
+    let client = Peer::builder().connect(ta);
+
+    client
+        .handshake(
+            &Hello::new("test-client", v(1, 0)).with_info(json!({ "pid": 42 })),
+            Negotiation::new(v(1, 0)),
+        )
+        .await
+        .unwrap();
+
+    let theirs = server.peer_info().expect("the client said hello");
+    assert_eq!(theirs.name, "test-client");
+    assert_eq!(theirs.info, json!({ "pid": 42 }));
 }
 
 #[tokio::test]
@@ -334,7 +384,7 @@ async fn an_incompatible_major_is_refused() {
     assert_eq!(error.code, codes::VERSION_INCOMPATIBLE);
     // Nothing was recorded, so a stub cannot be fooled into thinking the peer
     // supports something on a connection that was refused.
-    assert_eq!(client.peer_info().capabilities, Capabilities::new());
+    assert!(client.peer_info().is_none());
 }
 
 #[tokio::test]
