@@ -57,6 +57,20 @@ pub struct MethodMeta {
     /// The capability token this method needs, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub requires: Option<&'static str>,
+    /// The params type's name, as written in the declaration, or `None` for a
+    /// method that takes none.
+    ///
+    /// A name, not a shape: the shape is in `schema.json`, and this is the key
+    /// into it. Carrying it here is what lets an SDK generator emit a *typed*
+    /// method — `run(params: RunParams) -> RunResult` — rather than a string
+    /// constant and a dictionary, since `meta.json` alone otherwise says which
+    /// methods exist but not what any of them carries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub params: Option<&'static str>,
+    /// The result type's name, or `None` for a notification, or for a request
+    /// whose answer carries nothing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<&'static str>,
 }
 
 /// A protocol's full vocabulary.
@@ -115,6 +129,8 @@ mod tests {
                 kind: MethodKind::Request,
                 doc: "Invoke a tool.",
                 requires: Some("tools"),
+                params: Some("ToolCallParams"),
+                result: Some("ToolCallResult"),
             },
             MethodMeta {
                 name: "ui/ask",
@@ -122,6 +138,8 @@ mod tests {
                 kind: MethodKind::Request,
                 doc: "",
                 requires: None,
+                params: None,
+                result: None,
             },
         ],
         capabilities: &["tools"],
@@ -150,6 +168,8 @@ mod tests {
                     kind: MethodKind::Request,
                     doc: "",
                     requires: None,
+                    params: None,
+                    result: None,
                 },
                 MethodMeta {
                     name: "ping",
@@ -157,6 +177,8 @@ mod tests {
                     kind: MethodKind::Request,
                     doc: "",
                     requires: None,
+                    params: None,
+                    result: None,
                 },
             ],
             ..META
@@ -186,9 +208,13 @@ mod tests {
         assert_eq!(value["version"], "1.1");
         assert_eq!(value["methods"][0]["direction"], "initiator");
         assert_eq!(value["methods"][0]["kind"], "request");
-        // An empty doc and an absent capability are omitted, so the artifact
-        // stays readable instead of full of nulls.
+        assert_eq!(value["methods"][0]["params"], "ToolCallParams");
+        assert_eq!(value["methods"][0]["result"], "ToolCallResult");
+        // An empty doc, an absent capability and absent payload types are
+        // omitted, so the artifact stays readable instead of full of nulls.
         assert!(value["methods"][1].get("doc").is_none());
         assert!(value["methods"][1].get("requires").is_none());
+        assert!(value["methods"][1].get("params").is_none());
+        assert!(value["methods"][1].get("result").is_none());
     }
 }

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`MethodMeta` carries each method's payload type names**, so `meta.json`
+  says what a method takes and answers, not only that it exists. An SDK
+  generator reading the artifact could previously emit a string constant and a
+  dictionary; it can now emit a typed method. The value is the declared type's
+  last path segment, which is the key `schema.json`'s `$defs` are under, so the
+  two artifacts join up. Adding the fields changes any hand-written
+  `MethodMeta` literal.
+
 - **`Peer::shutdown`**, which ends a connection and waits for it. Dropping
   every handle also ends one, but says nothing about *when*, and `close` on a
   child-process transport is what shuts stdin, waits out the exit grace and

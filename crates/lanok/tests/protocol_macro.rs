@@ -76,6 +76,24 @@ fn the_vocabulary_is_available_as_data() {
     );
     assert!(META.is_bidirectional());
     assert_eq!(META.capabilities, &["ui_ask"]);
+
+    // The payload types each method carries, by name. Without these an SDK
+    // generator reading meta.json knows which methods exist but not what any
+    // of them takes, so it can only emit string constants.
+    let echo = META.method("echo").unwrap();
+    assert_eq!(echo.params, Some("EchoParams"));
+    assert_eq!(echo.result, Some("EchoResult"));
+    // A notification has no result, and a bare method neither.
+    assert_eq!(META.method("echo/progress").unwrap().result, None);
+    assert_eq!(META.method("ping").unwrap().params, None);
+
+    // The names are `$defs` keys, so they must be what the schema is keyed by
+    // rather than the path as written.
+    for declared in META.methods {
+        for ty in [declared.params, declared.result].into_iter().flatten() {
+            assert!(!ty.contains("::"), "`{ty}` is a path, not a $defs key");
+        }
+    }
 }
 
 #[test]
@@ -109,6 +127,8 @@ fn meta_serializes_to_the_committed_artifact_shape() {
     assert_eq!(value["min_version"], "1.1");
     assert_eq!(value["methods"][0]["name"], "echo");
     assert_eq!(value["methods"][0]["direction"], "initiator");
+    assert_eq!(value["methods"][0]["params"], "EchoParams");
+    assert_eq!(value["methods"][0]["result"], "EchoResult");
 }
 
 /// A responder that uppercases, reports progress, and asks a question.

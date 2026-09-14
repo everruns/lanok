@@ -168,6 +168,8 @@ mod tests {
                 kind: MethodKind::Request,
                 doc: "Transform some text.",
                 requires: None,
+                params: None,
+                result: None,
             },
             MethodMeta {
                 name: "ui/ask",
@@ -175,6 +177,8 @@ mod tests {
                 kind: MethodKind::Request,
                 doc: "",
                 requires: Some("ui_ask"),
+                params: None,
+                result: None,
             },
         ],
         capabilities: &["ui_ask"],
@@ -201,6 +205,8 @@ mod tests {
                 kind: MethodKind::Request,
                 doc: "",
                 requires: None,
+                params: None,
+                result: None,
             }],
             capabilities: &[],
             ..META

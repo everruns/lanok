@@ -22,6 +22,15 @@ pub struct MethodEntry {
     pub doc: String,
     #[serde(default)]
     pub requires: Option<String>,
+    /// The params type's name, or `None` for a method that takes none. A key
+    /// into `schema.json`'s `$defs`, which is what lets a generator emit a
+    /// typed method rather than a string constant.
+    #[serde(default)]
+    pub params: Option<String>,
+    /// The result type's name, or `None` for a notification or a request whose
+    /// answer carries nothing.
+    #[serde(default)]
+    pub result: Option<String>,
 }
 
 impl MethodEntry {
@@ -108,6 +117,8 @@ mod tests {
             kind: "request".into(),
             doc: String::new(),
             requires: None,
+            params: None,
+            result: None,
         };
         assert_eq!(method("tool/call").ident(), "tool_call");
         assert_eq!(method("echo").ident(), "echo");

@@ -53,6 +53,14 @@ pub fn expand(protocol: Protocol) -> TokenStream {
             Some(token) => quote!(Some(#token)),
             None => quote!(None),
         };
+        // The payload type's *name*, so `meta.json` says what each method
+        // carries and an SDK generator can emit a typed method instead of a
+        // string constant. The shape itself is `schema.json`'s job; this is the
+        // key into it. Taken from the declaration's last path segment, so
+        // `crate::wire::RunParams` is published as `RunParams` — which is what
+        // the schema's `$defs` are keyed by.
+        let params = type_name(m.params.as_ref());
+        let result = type_name(m.result.as_ref());
         quote! {
             ::lanok::MethodMeta {
                 name: #wire,
@@ -60,6 +68,8 @@ pub fn expand(protocol: Protocol) -> TokenStream {
                 kind: #kind,
                 doc: #doc,
                 requires: #requires,
+                params: #params,
+                result: #result,
             }
         }
     });
@@ -157,6 +167,22 @@ pub fn expand(protocol: Protocol) -> TokenStream {
         #responder_dispatch
         #initiator_dispatch
         #schema_document
+    }
+}
+
+/// The last path segment of a declared payload type, as a string literal, or
+/// `None`. `schemars` keys `$defs` by the bare type name, so publishing the
+/// full path would hand an SDK generator a key that is not in the schema.
+fn type_name(ty: Option<&syn::Type>) -> TokenStream {
+    let Some(syn::Type::Path(path)) = ty else {
+        return quote!(None);
+    };
+    match path.path.segments.last() {
+        Some(segment) => {
+            let name = segment.ident.to_string();
+            quote!(Some(#name))
+        }
+        None => quote!(None),
     }
 }
 
