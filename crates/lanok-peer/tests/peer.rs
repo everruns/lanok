@@ -476,3 +476,24 @@ async fn shutdown_fails_requests_other_handles_are_waiting_on() {
     let err = pending.await.unwrap().unwrap_err();
     assert_eq!(err.code, codes::TRANSPORT_CLOSED);
 }
+
+/// The hand-dispatch path gets the same context the generated one does.
+#[tokio::test]
+async fn a_router_handler_can_name_its_request() {
+    let (ta, tb) = duplex();
+    let client = Peer::builder().connect(ta);
+    let _server = Peer::builder()
+        .handler(Router::new().on_request_with("which", |cx, _| async move {
+            // Emitted before the response, and named after the request it
+            // belongs to.
+            cx.notify(
+                "progress",
+                json!({ "request": cx.id().map(|id| id.to_string()) }),
+            );
+            Ok(json!({ "id": cx.id().map(|id| id.to_string()) }))
+        }))
+        .connect(tb);
+
+    let answered: Value = client.request("which", Value::Null).await.unwrap();
+    assert_eq!(answered["id"], "1");
+}

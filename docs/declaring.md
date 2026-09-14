@@ -66,12 +66,23 @@ what you answer:
 ```rust
 #[lanok::async_trait]
 impl ResponderHandler for MyServer {
-    async fn echo(&self, params: EchoParams) -> Result<EchoResult, RpcError> {
+    async fn echo(&self, _cx: Context, params: EchoParams) -> Result<EchoResult, RpcError> {
         Ok(EchoResult { text: params.text })
     }
     // `ping` is left unimplemented and refuses politely.
 }
 ```
+
+## Every handler gets the request
+
+The first argument is a [`Context`](servers.md#what-a-handler-gets): the id of
+the request being answered, a `notify` that streams progress against it, and
+`supports` for what the peer advertised. Methods that ignore it take `_cx` and
+cost nothing; a method that later needs to stream changes its body rather than
+the protocol's shape.
+
+The same `Context` reaches handlers on a `SimpleServer` and on a `Peer`, which
+is what makes promoting a server between them a move rather than a rewrite.
 
 ## Capabilities gate locally
 

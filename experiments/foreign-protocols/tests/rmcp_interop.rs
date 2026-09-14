@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use foreign_protocols::mcp::*;
-use lanok::{Capabilities, Hello, NdjsonTransport, Peer, RpcError, Version};
+use lanok::{Capabilities, Context, Hello, NdjsonTransport, Peer, RpcError, Version};
 use rmcp::ServiceExt;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, ContentBlock, ElicitRequestParams, ElicitationSchema,
@@ -170,7 +170,7 @@ struct Client {
 impl InitiatorHandler for Client {
     /// `elicitation/create`, declared `responder` because only a server sends
     /// it. rmcp's `ElicitResult` is what it wants back.
-    async fn elicitation_create(&self, params: Value) -> Result<Value, RpcError> {
+    async fn elicitation_create(&self, _cx: Context, params: Value) -> Result<Value, RpcError> {
         // rmcp's own type, deserialised from what lanok carried. If a byte were
         // wrong, this is where it would show.
         let request: ElicitRequestParams = serde_json::from_value(params)
@@ -189,7 +189,7 @@ impl InitiatorHandler for Client {
     }
 
     /// `notifications/progress`, declared `either`. Sent here by the server.
-    fn progress(&self, _params: Value) {
+    fn progress(&self, _cx: Context, _params: Value) {
         self.progress.fetch_add(1, Ordering::SeqCst);
     }
 }

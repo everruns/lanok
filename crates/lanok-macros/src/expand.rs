@@ -397,14 +397,18 @@ fn handler_trait(methods: &[Method], incoming: Direction, trait_name: &str) -> T
         };
         let params = param_arg(m);
         let unused = match &m.params {
-            Some(_) => quote!(let _ = params;),
-            None => quote!(),
+            Some(_) => quote!(let _ = (cx, params);),
+            None => quote!(let _ = cx;),
         };
+        // Every method takes the context, including the ones that ignore it.
+        // A handler that later needs the request id or wants to stream
+        // progress then changes its body, not the protocol's shape, and the
+        // two serve loops stay interchangeable.
         if m.expects_response {
             let result = result_type(m);
             quote! {
                 #[doc = #doc]
-                async fn #ident(&self #params) -> ::core::result::Result<#result, ::lanok::RpcError> {
+                async fn #ident(&self, cx: ::lanok::Context #params) -> ::core::result::Result<#result, ::lanok::RpcError> {
                     #unused
                     Err(::lanok::RpcError::method_not_found(#wire))
                 }
@@ -412,7 +416,7 @@ fn handler_trait(methods: &[Method], incoming: Direction, trait_name: &str) -> T
         } else {
             quote! {
                 #[doc = #doc]
-                fn #ident(&self #params) {
+                fn #ident(&self, cx: ::lanok::Context #params) {
                     #unused
                 }
             }
@@ -470,7 +474,7 @@ fn dispatch(
         }
 
         impl<H: #trait_ident> ::lanok::Handler for #struct_ident<H> {
-            fn request(&self, method: ::std::string::String, params: ::lanok::Value)
+            fn request(&self, cx: ::lanok::Context, method: ::std::string::String, params: ::lanok::Value)
                 -> ::lanok::HandlerFuture
             {
                 // The handler is behind an Arc so the returned future owns what
@@ -485,7 +489,7 @@ fn dispatch(
                 })
             }
 
-            fn notification(&self, method: ::std::string::String, params: ::lanok::Value) {
+            fn notification(&self, cx: ::lanok::Context, method: ::std::string::String, params: ::lanok::Value) {
                 match method.as_str() {
                     #(#notification_arms)*
                     _ => {}
@@ -508,8 +512,8 @@ fn request_arm(method: &Method) -> TokenStream {
     let wire = &method.wire_name;
     let decode = decode_params(method);
     let call = match &method.params {
-        Some(_) => quote!(handler.#ident(params).await),
-        None => quote!(handler.#ident().await),
+        Some(_) => quote!(handler.#ident(cx, params).await),
+        None => quote!(handler.#ident(cx).await),
     };
     let encode = match &method.result {
         Some(_) => quote! {
@@ -539,12 +543,12 @@ fn notification_arm(method: &Method) -> TokenStream {
         Some(ty) => quote! {
             #wire => {
                 if let Ok(params) = ::lanok::from_value::<#ty>(params) {
-                    self.0.#ident(params);
+                    self.0.#ident(cx, params);
                 }
             }
         },
         None => quote! {
-            #wire => self.0.#ident(),
+            #wire => self.0.#ident(cx),
         },
     }
 }

@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A handler gets the request it is answering.** Every handler now takes a
+  `Context` as its first argument: `cx.id()` is the id of the request being
+  answered (`None` in a notification handler), `cx.notify` emits against that
+  id before the response lands, and `cx.supports` / `cx.peer` read the peer's
+  handshake. A handler could previously see its method name and its params,
+  which is everything about a request except which request it is. A protocol
+  that streams progress has to name the request the progress belongs to, and
+  one whose `cancel` aborts an in-flight call has to find that call by id, so
+  both of lanok's own protocols answered by abandoning the generated dispatch
+  and writing a serve loop by hand.
+
+  The context is on every method, including those that ignore it, which take
+  `_cx`. `Router` gains `on_request_with` and `on_notification_with` for the
+  hand-dispatch path, leaving `on_request` as the short form. `SimpleServer`'s
+  `Context` is this same type, so promoting a server between the two shapes
+  really does leave its handlers alone; its `peer_supports` is now `supports`,
+  matching `Peer::supports`. `Context::detached()` builds one attached to
+  nothing, for calling a handler straight from a test.
+
 - **One representation of the peer's handshake.** `Peer` stored the handshake
   in a `PeerInfo` summary that carried name, version and capabilities, and
   `SimpleServer` handed handlers the `Hello` itself. Two types for one fact,

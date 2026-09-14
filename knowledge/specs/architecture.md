@@ -92,7 +92,31 @@ Two ownership rules, both of which exist because violating them produced hangs:
 The peer, not the handler, owns the handshake when configured to serve one.
 Capability state lives on the peer, so answering there is what makes
 `supports()` true on the responding side, which is exactly what a reverse
-request needs to know.
+request needs to know. The handshake is kept as the `Hello` that arrived, not a
+summary of it: a protocol's own `info` travels there, and a reduced copy dropped
+the one field that exists to be protocol-specific.
+
+## A handler gets the request, not only its params
+
+Every handler takes a `Context` alongside its params: the id of the request
+being answered, a `notify` that emits against that id before the response, and
+the peer's handshake. The id is the part that cannot be reconstructed. A
+protocol that streams progress has to name the request the progress belongs to,
+and one whose `cancel` aborts an in-flight call has to find that call by id, so
+a handler without it is a handler that knows everything about its request
+except which one it is. Both mira and YEP answered that by abandoning the
+generated dispatch and writing a serve loop, which is how a protocol ends up
+maintaining its own decode and encode next to a generated one that does the
+same job.
+
+It is on every method, including those that ignore it. The alternative,
+declaring per method which ones want it, puts a dispatch detail in the
+protocol's vocabulary and makes a handler that starts streaming a change to the
+declaration rather than to its own body.
+
+`Context` is one type across both server shapes. That is what makes the
+promotion below a move rather than a rewrite: the same handler that streams
+progress on a serial loop streams it on a peer.
 
 ## Mechanism here, policy in the protocol
 

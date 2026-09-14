@@ -138,7 +138,7 @@ struct Server {
 
 #[lanok::async_trait]
 impl ResponderHandler for Server {
-    async fn echo(&self, params: EchoParams) -> Result<EchoResult, RpcError> {
+    async fn echo(&self, _cx: Context, params: EchoParams) -> Result<EchoResult, RpcError> {
         let peer = self.peer.get().expect("peer installed before serving");
 
         // Both generated stub kinds, in one handler: a notification out and a
@@ -160,7 +160,7 @@ impl ResponderHandler for Server {
         })
     }
 
-    async fn ping(&self) -> Result<(), RpcError> {
+    async fn ping(&self, _cx: Context) -> Result<(), RpcError> {
         Ok(())
     }
 }
@@ -171,14 +171,14 @@ struct Client {
 
 #[lanok::async_trait]
 impl InitiatorHandler for Client {
-    async fn ui_ask(&self, params: AskParams) -> Result<AskResult, RpcError> {
+    async fn ui_ask(&self, _cx: Context, params: AskParams) -> Result<AskResult, RpcError> {
         assert_eq!(params.question, "shout?");
         Ok(AskResult {
             answer: "yes".into(),
         })
     }
 
-    fn progress(&self, params: ProgressParams) {
+    fn progress(&self, _cx: Context, params: ProgressParams) {
         assert_eq!(params.step, 1);
         self.progress_seen.fetch_add(1, Ordering::SeqCst);
     }

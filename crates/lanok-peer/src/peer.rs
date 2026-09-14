@@ -32,6 +32,7 @@ use lanok_core::{Id, IdAllocator, Message, RpcError, Value};
 use lanok_transport::Transport;
 use tokio::sync::{Notify, mpsc, oneshot};
 
+use crate::context::Context;
 use crate::handler::{Handler, NoHandler};
 use crate::handshake::{Hello, INITIALIZE, INITIALIZED};
 
@@ -63,6 +64,20 @@ pub struct Abandoned {
 /// Called from a `Drop`, so it must not block. Use [`Peer::notify`] directly,
 /// or spawn for anything that needs to await.
 pub type AbandonHook = Arc<dyn Fn(&Peer, &Abandoned) + Send + Sync>;
+
+/// A [`Peer`] handle that does not keep the connection open.
+///
+/// Held by anything that outlives a request but must not outlive the
+/// connection: the dispatch task, and the [`Context`](crate::Context) it hands
+/// the handler.
+#[derive(Clone)]
+pub(crate) struct WeakPeer(Weak<Inner>);
+
+impl WeakPeer {
+    pub(crate) fn upgrade(&self) -> Option<Peer> {
+        self.0.upgrade().map(Peer)
+    }
+}
 
 struct Inner {
     outbound: mpsc::UnboundedSender<Message>,
@@ -355,7 +370,18 @@ impl Peer {
 
     /// Send a notification. Fire and forget, by definition.
     pub fn notify(&self, method: impl Into<String>, params: Value) {
-        let _ = self.0.outbound.send(Message::notification(method, params));
+        self.notify_message(Message::notification(method, params));
+    }
+
+    /// Queue an already-built notification. What [`Context::notify`] sends, so
+    /// a handler's progress and a caller's notification take one path out.
+    pub(crate) fn notify_message(&self, message: Message) {
+        let _ = self.0.outbound.send(message);
+    }
+
+    /// A handle that does not keep the connection open.
+    pub(crate) fn downgrade(&self) -> WeakPeer {
+        WeakPeer(Arc::downgrade(&self.0))
     }
 
     /// Run the handshake: send `initialize`, check the reply's version against
@@ -642,7 +668,9 @@ fn dispatch(message: Message, peer: &Peer, handler: &Arc<dyn Handler>) {
         // Acknowledged by having been received. Nothing to route.
         Message::Notification { method, .. } if method == peer.0.initialized_method => {}
 
-        Message::Notification { method, params } => handler.notification(method, params),
+        Message::Notification { method, params } => {
+            handler.notification(Context::for_peer(peer.downgrade(), None), method, params)
+        }
         Message::Request { id, method, params } => {
             // Each request gets its own task, so a slow handler never blocks the
             // reader and requests are answered concurrently.
@@ -651,12 +679,13 @@ fn dispatch(message: Message, peer: &Peer, handler: &Arc<dyn Handler>) {
             // if the connection is still up, but must not keep it up. A strong
             // clone here means one slow request pins the whole connection open
             // long after every handle has been dropped.
-            let peer = Arc::downgrade(&peer.0);
+            let weak = peer.downgrade();
+            let cx = Context::for_peer(weak.clone(), Some(id.clone()));
             let handler = handler.clone();
             tokio::spawn(async move {
-                let outcome = handler.request(method, params).await;
-                let Some(inner) = peer.upgrade() else { return };
-                Peer(inner).send_message(match outcome {
+                let outcome = handler.request(cx, method, params).await;
+                let Some(peer) = weak.upgrade() else { return };
+                peer.send_message(match outcome {
                     Ok(result) => Message::result(id, result),
                     Err(error) => Message::error(id, error),
                 });

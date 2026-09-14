@@ -97,9 +97,9 @@ pub use lanok_schema as schema;
 /// Everything a protocol crate typically imports.
 pub mod prelude {
     pub use lanok_core::{Capabilities, Negotiation, RpcError, Value, Version};
+    pub use lanok_peer::{Context, Hello, SimpleServer};
     #[cfg(feature = "async")]
     pub use lanok_peer::{Handler, Peer, Router};
-    pub use lanok_peer::{Hello, SimpleServer};
     #[cfg(feature = "async")]
     pub use lanok_transport::{ChildTransport, StdioTransport, Transport, duplex};
 }

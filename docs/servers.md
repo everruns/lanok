@@ -42,8 +42,29 @@ Streaming progress while a request is open takes the context form:
 The notifications are written before the response, so a caller watching a long
 request sees something happening.
 
-`context.peer_supports(token)` tells you what the caller advertised, because the
-handshake is answered by the server itself.
+## What a handler gets
+
+`Context` is the request a handler is answering, and it is the same type on
+both server shapes:
+
+| | |
+|---|---|
+| `cx.id()` | the id of this request, `None` inside a notification handler |
+| `cx.notify(method, params)` | emit now, before this request's response |
+| `cx.supports(token)` | what the peer advertised in its handshake |
+| `cx.peer()` | the handshake itself, once it has arrived |
+
+`id` is what a protocol correlates progress on, and what a `cancel` method
+looks its target up by. Without it a handler knows everything about the request
+except which one it is, which is why a protocol that streams or cancels used to
+end up writing its own serve loop.
+
+`Context::detached()` builds one attached to nothing, for calling a handler
+directly from a test without standing up a transport.
+
+On a `Peer`, handlers take it as their first argument. On a `SimpleServer`,
+`on_request_with` and `on_notification` pass it, and `on_request` is the short
+form for handlers that do not need it.
 
 ## Peer
 

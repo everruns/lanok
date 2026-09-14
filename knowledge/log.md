@@ -1,5 +1,26 @@
 # Knowledge Log
 
+## 2026-09-14, A handler gets the request it is answering
+
+- [Architecture](specs/architecture.md): every handler now takes a `Context`
+  alongside its params, carrying the request's id, a `notify` that streams
+  against that id, and the peer's handshake. The id is the part a handler
+  cannot reconstruct, and both a protocol that reports progress and one whose
+  `cancel` aborts an in-flight call need it. Without it, mira and YEP each
+  abandoned the generated dispatch for a hand-written serve loop, so the kit
+  was generating dispatch that the protocols it exists for could not use.
+- It is on every method, ignored ones included. Declaring per method which want
+  it would put a dispatch detail in the protocol's vocabulary, and make a
+  handler that starts streaming a change to the declaration rather than to its
+  own body.
+- One `Context` across both server shapes, which is what the promotion claim
+  between them was already asserting. `SimpleServer` handed one to its handlers
+  and `Peer` handed its handlers nothing, so "promoting does not touch your
+  handlers" was true of the direction nobody travels.
+- The peer's handshake is now kept as the `Hello` that arrived rather than a
+  three-field summary of it. The summary dropped `info`, which is the field the
+  handshake exists to carry protocol-specific data in.
+
 ## 2026-09-13, A third party judges the wire
 
 - [Foreign protocol fit](specs/foreign-protocols.md): lanok's MCP declaration

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use echo_protocol::*;
-use lanok::{ChildTransport, Hello, Peer, RpcError};
+use lanok::{ChildTransport, Context, Hello, Peer, RpcError};
 use tokio::process::Command;
 
 #[tokio::main]
@@ -115,14 +115,14 @@ struct Client {
 #[lanok::async_trait]
 impl InitiatorHandler for Client {
     /// The reverse request: the server is asking us.
-    async fn ui_ask(&self, params: AskParams) -> Result<AskResult, RpcError> {
+    async fn ui_ask(&self, _cx: Context, params: AskParams) -> Result<AskResult, RpcError> {
         println!("server asks: {}", params.question);
         Ok(AskResult {
             answer: "yes".into(),
         })
     }
 
-    fn progress(&self, params: ProgressParams) {
+    fn progress(&self, _cx: Context, params: ProgressParams) {
         println!("progress {}/{}", params.step, params.of);
         self.progress_seen.fetch_add(1, Ordering::SeqCst);
     }

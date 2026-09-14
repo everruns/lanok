@@ -18,50 +18,8 @@ use std::sync::{Arc, Mutex};
 
 use lanok_core::{Capabilities, Message, RpcError, Value, Version};
 
+use crate::context::{Context, SharedWriter};
 use crate::handshake::{Hello, INITIALIZE};
-
-/// The write half, shared with handlers so they can emit progress.
-type SharedWriter = Arc<Mutex<Box<dyn Write + Send>>>;
-
-/// What a handler can do besides returning a value.
-pub struct Context {
-    writer: SharedWriter,
-    peer: Arc<Mutex<Option<Hello>>>,
-}
-
-impl std::fmt::Debug for Context {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Context").finish_non_exhaustive()
-    }
-}
-
-impl Context {
-    /// Emit a notification now, before the request's own response.
-    ///
-    /// This is how a serial server streams progress: the caller sees the
-    /// notifications while the request is still open.
-    pub fn notify(&self, method: impl Into<String>, params: Value) {
-        let message = Message::notification(method, params);
-        let mut writer = self.writer.lock().expect("writer lock");
-        let _ = writeln!(writer, "{}", message.to_line());
-        let _ = writer.flush();
-    }
-
-    /// Whether the connected peer advertised `token` in its handshake.
-    pub fn peer_supports(&self, token: &str) -> bool {
-        self.peer
-            .lock()
-            .expect("peer lock")
-            .as_ref()
-            .map(|hello| hello.capabilities.supports(token))
-            .unwrap_or(false)
-    }
-
-    /// The peer's handshake, once it has arrived.
-    pub fn peer(&self) -> Option<Hello> {
-        self.peer.lock().expect("peer lock").clone()
-    }
-}
 
 type RequestFn = Box<dyn Fn(&Context, Value) -> Result<Value, RpcError> + Send>;
 type NotificationFn = Box<dyn Fn(&Context, Value) + Send>;
@@ -162,10 +120,6 @@ impl SimpleServer {
     pub fn serve(self, reader: impl BufRead, writer: Box<dyn Write + Send>) -> io::Result<()> {
         let writer: SharedWriter = Arc::new(Mutex::new(writer));
         let peer = Arc::new(Mutex::new(None));
-        let context = Context {
-            writer: writer.clone(),
-            peer: peer.clone(),
-        };
 
         for line in BufReader::new(reader).lines() {
             let line = line?;
@@ -180,6 +134,10 @@ impl SimpleServer {
 
             match message {
                 Message::Request { id, method, params } => {
+                    // One context per request, because it carries that
+                    // request's id.
+                    let context =
+                        Context::for_serial(writer.clone(), peer.clone(), Some(id.clone()));
                     let outcome = self.answer(&context, &peer, &method, params);
                     let response = match outcome {
                         Ok(result) => Message::result(id, result),
@@ -191,6 +149,7 @@ impl SimpleServer {
                 }
                 Message::Notification { method, params } => {
                     if let Some(handler) = self.notifications.get(&method) {
+                        let context = Context::for_serial(writer.clone(), peer.clone(), None);
                         handler(&context, params);
                     }
                 }

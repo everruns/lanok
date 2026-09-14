@@ -8,7 +8,7 @@
 //! the reverse `ui/ask` request. The handlers are the same shape either way.
 
 use echo_protocol::*;
-use lanok::{Hello, Peer, RpcError, SimpleServer, StdioTransport};
+use lanok::{Context, Hello, Peer, RpcError, SimpleServer, StdioTransport};
 
 fn main() -> std::io::Result<()> {
     if std::env::args().any(|arg| arg == "--async") {
@@ -75,7 +75,7 @@ struct Server {
 
 #[lanok::async_trait]
 impl ResponderHandler for Server {
-    async fn echo(&self, params: EchoParams) -> Result<EchoResult, RpcError> {
+    async fn echo(&self, _cx: Context, params: EchoParams) -> Result<EchoResult, RpcError> {
         let peer = self.peer.get().expect("peer installed before serving");
 
         for step in 1..=3 {
@@ -104,7 +104,7 @@ impl ResponderHandler for Server {
         })
     }
 
-    async fn ping(&self) -> Result<(), RpcError> {
+    async fn ping(&self, _cx: Context) -> Result<(), RpcError> {
         Ok(())
     }
 }

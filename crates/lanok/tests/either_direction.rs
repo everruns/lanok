@@ -90,22 +90,22 @@ struct Both {
 // and both dispatchers route it.
 #[lanok::async_trait]
 impl ResponderHandler for Both {
-    async fn ping(&self, _params: PingParams) -> Result<PongResult, RpcError> {
+    async fn ping(&self, _cx: Context, _params: PingParams) -> Result<PongResult, RpcError> {
         self.answered.fetch_add(1, Ordering::SeqCst);
         Ok(PongResult { ok: true })
     }
-    fn progress(&self, _params: ProgressParams) {
+    fn progress(&self, _cx: Context, _params: ProgressParams) {
         self.progress_seen.fetch_add(1, Ordering::SeqCst);
     }
 }
 
 #[lanok::async_trait]
 impl InitiatorHandler for Both {
-    async fn ping(&self, _params: PingParams) -> Result<PongResult, RpcError> {
+    async fn ping(&self, _cx: Context, _params: PingParams) -> Result<PongResult, RpcError> {
         self.answered.fetch_add(1, Ordering::SeqCst);
         Ok(PongResult { ok: true })
     }
-    fn progress(&self, _params: ProgressParams) {
+    fn progress(&self, _cx: Context, _params: ProgressParams) {
         self.progress_seen.fetch_add(1, Ordering::SeqCst);
     }
 }

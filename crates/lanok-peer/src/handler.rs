@@ -9,6 +9,8 @@ use std::pin::Pin;
 
 use lanok_core::{RpcError, Value};
 
+use crate::context::Context;
+
 /// A boxed future returning one request's outcome.
 pub type HandlerFuture = Pin<Box<dyn Future<Output = Result<Value, RpcError>> + Send>>;
 
@@ -22,17 +24,24 @@ pub type HandlerFuture = Pin<Box<dyn Future<Output = Result<Value, RpcError>> + 
 pub trait Handler: Send + Sync + 'static {
     /// Answer a request. The returned future must be `Send`: requests are
     /// handled concurrently, each on its own task.
-    fn request(&self, method: String, params: Value) -> HandlerFuture {
+    ///
+    /// `cx` is the request itself: its id, and the means to emit progress
+    /// against that id before the response lands. It is passed by value
+    /// because the returned future is `'static` and cannot borrow.
+    fn request(&self, cx: Context, method: String, params: Value) -> HandlerFuture {
         Box::pin(async move {
-            let _ = params;
+            let _ = (cx, params);
             Err(RpcError::method_not_found(&method))
         })
     }
 
     /// Observe a notification. Nothing is sent back, by definition, so an error
     /// here has nowhere to go and the implementation swallows or logs it.
-    fn notification(&self, method: String, params: Value) {
-        let _ = (method, params);
+    ///
+    /// `cx` carries no id here, for the same reason: a notification is not a
+    /// request and has nothing to correlate to.
+    fn notification(&self, cx: Context, method: String, params: Value) {
+        let _ = (cx, method, params);
     }
 }
 
@@ -41,6 +50,9 @@ pub trait Handler: Send + Sync + 'static {
 pub struct NoHandler;
 
 impl Handler for NoHandler {}
+
+type RequestFn = Box<dyn Fn(Context, Value) -> HandlerFuture + Send + Sync>;
+type NotificationFn = Box<dyn Fn(Context, Value) + Send + Sync>;
 
 /// A method table, for peers that dispatch by hand rather than from a
 /// `protocol!` declaration.
@@ -52,8 +64,8 @@ impl Handler for NoHandler {}
 /// # let _ = router;
 /// ```
 pub struct Router {
-    requests: std::collections::HashMap<String, Box<dyn Fn(Value) -> HandlerFuture + Send + Sync>>,
-    notifications: std::collections::HashMap<String, Box<dyn Fn(Value) + Send + Sync>>,
+    requests: std::collections::HashMap<String, RequestFn>,
+    notifications: std::collections::HashMap<String, NotificationFn>,
 }
 
 impl std::fmt::Debug for Router {
@@ -90,7 +102,21 @@ impl Router {
     {
         self.requests.insert(
             method.into(),
-            Box::new(move |params| Box::pin(handler(params))),
+            Box::new(move |_cx, params| Box::pin(handler(params))),
+        );
+        self
+    }
+
+    /// Answer `method` with an async function that also gets the request:
+    /// its id, and a way to emit progress against it.
+    pub fn on_request_with<F, Fut>(mut self, method: impl Into<String>, handler: F) -> Self
+    where
+        F: Fn(Context, Value) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<Value, RpcError>> + Send + 'static,
+    {
+        self.requests.insert(
+            method.into(),
+            Box::new(move |cx, params| Box::pin(handler(cx, params))),
         );
         self
     }
@@ -100,22 +126,32 @@ impl Router {
     where
         F: Fn(Value) + Send + Sync + 'static,
     {
+        self.notifications
+            .insert(method.into(), Box::new(move |_cx, params| handler(params)));
+        self
+    }
+
+    /// Observe `method`, with the context too.
+    pub fn on_notification_with<F>(mut self, method: impl Into<String>, handler: F) -> Self
+    where
+        F: Fn(Context, Value) + Send + Sync + 'static,
+    {
         self.notifications.insert(method.into(), Box::new(handler));
         self
     }
 }
 
 impl Handler for Router {
-    fn request(&self, method: String, params: Value) -> HandlerFuture {
+    fn request(&self, cx: Context, method: String, params: Value) -> HandlerFuture {
         match self.requests.get(&method) {
-            Some(handler) => handler(params),
+            Some(handler) => handler(cx, params),
             None => Box::pin(async move { Err(RpcError::method_not_found(&method)) }),
         }
     }
 
-    fn notification(&self, method: String, params: Value) {
+    fn notification(&self, cx: Context, method: String, params: Value) {
         if let Some(handler) = self.notifications.get(&method) {
-            handler(params);
+            handler(cx, params);
         }
     }
 }
@@ -128,7 +164,7 @@ mod tests {
     #[tokio::test]
     async fn the_default_rejects_rather_than_hangs() {
         let error = NoHandler
-            .request("anything".into(), Value::Null)
+            .request(Context::detached(), "anything".into(), Value::Null)
             .await
             .unwrap_err();
         assert_eq!(error.code, codes::METHOD_NOT_FOUND);

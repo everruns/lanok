@@ -4,7 +4,7 @@
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use lanok_core::{Message, RpcError, Value, codes};
+use lanok_core::{Id, Message, RpcError, Value, codes};
 use lanok_peer::SimpleServer;
 use serde_json::json;
 
@@ -128,12 +128,52 @@ fn progress_notifications_arrive_before_the_response() {
     );
 }
 
+/// The serial loop hands over the same `Context` the async peer does, so a
+/// handler that names its request keeps working across the move between them.
+#[test]
+fn handlers_can_see_which_request_they_are_answering() {
+    let server = SimpleServer::new("s", "1.0".parse().unwrap())
+        .on_request_with("which", |cx, _| {
+            Ok(json!({ "id": cx.id().map(|id| id.to_string()) }))
+        })
+        .on_notification("fyi", |cx, _| {
+            // Nothing to reply to, so nothing to name.
+            assert!(cx.id().is_none());
+        });
+
+    let messages = run(
+        server,
+        concat!(
+            r#"{"id":7,"method":"which"}"#,
+            "\n",
+            r#"{"method":"fyi"}"#,
+            "\n",
+            r#"{"id":"abc","method":"which"}"#,
+            "\n"
+        ),
+    );
+
+    assert_eq!(result_of(&messages, 7).as_ref().unwrap()["id"], "7");
+    // A peer that numbers its requests with strings is answered in kind, and
+    // the handler sees what actually arrived.
+    let text_id = messages
+        .iter()
+        .find_map(|m| match m {
+            Message::Response { id, payload } if *id == Id::Text("abc".into()) => Some(payload),
+            _ => None,
+        })
+        .expect("the string-id request was answered")
+        .as_ref()
+        .unwrap();
+    assert_eq!(text_id["id"], "abc");
+}
+
 #[test]
 fn handlers_can_see_what_the_peer_advertised() {
     let server =
         SimpleServer::new("s", "1.0".parse().unwrap()).on_request_with("check", |cx, _| {
             Ok(json!({
-                "peer_streams": cx.peer_supports("streaming"),
+                "peer_streams": cx.supports("streaming"),
                 "peer_name": cx.peer().map(|h| h.name).unwrap_or_default(),
             }))
         });
