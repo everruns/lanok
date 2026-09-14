@@ -7,7 +7,9 @@
       "direction": "initiator",
       "doc": "Transform some text and hand it back.",
       "kind": "request",
-      "name": "echo"
+      "name": "echo",
+      "params": "EchoParams",
+      "result": "EchoResult"
     },
     {
       "direction": "initiator",
@@ -19,14 +21,17 @@
       "direction": "responder",
       "doc": "Progress while an `echo` is still open.",
       "kind": "notification",
-      "name": "echo/progress"
+      "name": "echo/progress",
+      "params": "ProgressParams"
     },
     {
       "direction": "responder",
       "doc": "Ask the caller a question and wait for the answer. The reverse direction: the responder is the one making the request.",
       "kind": "request",
       "name": "ui/ask",
-      "requires": "ui_ask"
+      "params": "AskParams",
+      "requires": "ui_ask",
+      "result": "AskResult"
     }
   ],
   "min_version": "1.0",
