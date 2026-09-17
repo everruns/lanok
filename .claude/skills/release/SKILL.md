@@ -145,7 +145,19 @@ the gaps rather than failing on them. Never leave a release half-published.
 
 The two trusted publishers use OIDC, so there is no npm or PyPI token to store.
 Both must be registered before the first release, or those jobs fail while the
-crates go up, which is a half-published release.
+crates go up, which is a half-published release. The spec's
+[registration steps](../../../knowledge/specs/release-process.md) carry the
+exact values, and the npm caveat: a trusted publisher lives on an existing
+package's settings page, so `@lanok/rpc` cannot be pre-registered the way a
+PyPI pending publisher can. Its first version is published by hand, and
+`publish.yml` then skips it rather than failing.
+
+Before asking for approval, check the ones that matter for this release:
+
+```bash
+curl -s https://pypi.org/pypi/lanok/json >/dev/null && echo "PyPI project exists"
+npm view @lanok/rpc version 2>/dev/null || echo "npm package does not exist yet"
+```
 
 ## After the first publish
 

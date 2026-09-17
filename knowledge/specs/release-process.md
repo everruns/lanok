@@ -81,6 +81,43 @@ registered before the first release, or the SDK jobs fail while the crates go
 up, which is exactly the half-published state the idempotent steps exist to
 avoid.
 
+### Registering the two publishers
+
+The values are the same on both sides, and they must match `publish.yml`
+exactly: owner `everruns`, repository `lanok`, workflow file `publish.yml`,
+environment `release`.
+
+**PyPI** supports registering a publisher for a project that does not exist yet,
+so this is done once, before the first release:
+
+1. Sign in to pypi.org, then open **Publishing** in the account sidebar, not
+   under a project. There is no project yet, which is the point.
+2. Add a GitHub Actions pending publisher with PyPI project name `lanok`, owner
+   `everruns`, repository `lanok`, workflow `publish.yml`, environment
+   `release`.
+
+A pending publisher reserves nothing: the name is only taken when a publish
+actually uses it, so a first release should not sit half-prepared for long.
+
+**npm has a chicken and egg problem.** A trusted publisher is configured on a
+package's settings page, and an unpublished package has no settings page, so
+`@lanok/rpc` cannot be pre-registered the way PyPI can. The first version goes
+up by hand and every later one is OIDC:
+
+1. Create the npm organization `lanok`, which is what makes the `@lanok` scope
+   exist. Scopes are org or user names; there is no way to publish into a scope
+   that belongs to nobody.
+2. Publish once by hand, from a checkout at the release commit:
+   `cd sdks/typescript && npm ci && npm run build && npm publish --access public`.
+   Scoped packages are private by default, hence `--access public`.
+3. Then open the package settings on npmjs.com and add the GitHub Actions
+   trusted publisher with the four values above.
+
+Doing step 2 before the release commit lands is deliberate rather than a
+workaround: `publish.yml` skips a version already on the registry, so the npm
+job goes green on the first release instead of failing, and every release after
+it publishes through OIDC with provenance.
+
 ## Why the dry run is one workspace invocation
 
 Per-crate dry runs cannot work at a version bump. Each crate's generated
