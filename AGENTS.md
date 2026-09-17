@@ -137,6 +137,16 @@ just knowledge  # OKF conformance + intra-bundle links (when knowledge/ changed)
   and ask before committing.
 - Stage files explicitly by name. Avoid broad `git add .` / `git add -A`.
 
+### Releases
+
+Maintainers push to `main` directly; the release path has no pull request in it,
+so the review gate is explicit instead. The
+[`release` skill](.claude/skills/release/SKILL.md) runs the gates, shows a human
+the version and the highlights, and writes nothing until they approve. The
+approved changelog section becomes the GitHub release notes, and CI publishes
+the eight crates and both SDKs from the prep commit. Design of record:
+[`knowledge/specs/release-process.md`](knowledge/specs/release-process.md).
+
 ### Pre-PR checklist
 
 - `just check` passes (fmt, clippy `-D warnings`, tests, schema drift).

@@ -1,0 +1,266 @@
+name: Publish
+
+# Every job is idempotent, so a release that fails halfway (a registry blip
+# between waves) is finished by re-dispatching this workflow rather than by
+# hand-editing anything.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Wave 1: the crates with no internal dependencies. Nothing to wait for.
+  publish-roots:
+    name: Publish lanok-core, lanok-macros
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      # A tag can be pushed to any commit. Publishing is irreversible (crates.io
+      # has no unpublish, only yank), so refuse to publish anything that is not
+      # on main.
+      - name: Verify publish source is on main
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          SOURCE_SHA=$(git rev-parse HEAD)
+          if ! git merge-base --is-ancestor "$SOURCE_SHA" origin/main; then
+            echo "Error: publish source $SOURCE_SHA is not reachable from origin/main"
+            exit 1
+          fi
+          echo "Publish source verified on origin/main: $SOURCE_SHA"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify version matches tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if [ "$EVENT_NAME" = "release" ]; then
+            TAG_VERSION="${RELEASE_TAG#v}"
+          elif [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            # Re-dispatch from main to finish a partial release. Every publish
+            # step skips what is already up, so this only fills gaps.
+            TAG_VERSION="$CARGO_VERSION"
+          else
+            echo "Error: manual publish must run from main or a vX.Y.Z tag"
+            exit 1
+          fi
+          if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
+            echo "Error: tag ($TAG_VERSION) != Cargo.toml ($CARGO_VERSION)"
+            exit 1
+          fi
+          echo "Version verified: $TAG_VERSION"
+
+      - name: Publish lanok-core
+        run: scripts/cargo_publish_if_needed.sh lanok-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish lanok-macros
+        run: scripts/cargo_publish_if_needed.sh lanok-macros
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # Wave 2: everything that needs only lanok-core. Each `cargo publish` runs a
+  # verify build that resolves siblings from the index, not the workspace, so
+  # every wave waits for the index before it starts.
+  publish-core-dependents:
+    name: Publish lanok-transport, lanok-schema, lanok-clap
+    runs-on: ubuntu-latest
+    needs: publish-roots
+    environment: release
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      - name: Publish lanok-transport
+        run: scripts/cargo_publish_if_needed.sh lanok-transport
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish lanok-schema
+        run: scripts/cargo_publish_if_needed.sh lanok-schema
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish lanok-clap
+        run: scripts/cargo_publish_if_needed.sh lanok-clap
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # Wave 3: lanok-peer needs lanok-transport, lanok-cli needs lanok-schema.
+  publish-peer-and-cli:
+    name: Publish lanok-peer, lanok-cli
+    runs-on: ubuntu-latest
+    needs: publish-core-dependents
+    environment: release
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      - name: Publish lanok-peer
+        run: scripts/cargo_publish_if_needed.sh lanok-peer
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish lanok-cli
+        run: scripts/cargo_publish_if_needed.sh lanok-cli
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # Wave 4: the facade, which depends on all five library crates.
+  publish-facade:
+    name: Publish lanok
+    runs-on: ubuntu-latest
+    needs: publish-peer-and-cli
+    environment: release
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Wait for crates.io index update
+        run: sleep 30
+
+      - name: Publish lanok
+        run: scripts/cargo_publish_if_needed.sh lanok
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  verify-crates:
+    name: Verify published versions
+    runs-on: ubuntu-latest
+    needs: publish-facade
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      # A green publish job means the upload was accepted, not that the version
+      # resolves. Poll the index until every crate actually serves it.
+      - name: Verify crates.io versions
+        run: |
+          EXPECTED=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "Expected version: $EXPECTED"
+          python3 scripts/verify_crates_publish.py --expected "$EXPECTED" \
+            lanok-core lanok-macros lanok-transport lanok-schema lanok-clap \
+            lanok-peer lanok-cli lanok
+
+  # The SDKs are native runtimes, not bindings, so they publish independently of
+  # the crates: a registry hiccup on one side never blocks the other. They carry
+  # the workspace version because they implement the same protocol contract.
+  publish-python:
+    name: Publish Python SDK
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # OIDC token for PyPI Trusted Publishing
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Verify SDK version matches the workspace
+        run: |
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          SDK_VERSION=$(grep '^version' sdks/python/pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if [ "$CARGO_VERSION" != "$SDK_VERSION" ]; then
+            echo "Error: Python SDK version ($SDK_VERSION) != workspace ($CARGO_VERSION)"
+            exit 1
+          fi
+          echo "Python SDK version verified: $SDK_VERSION"
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.x"
+
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build sdks/python
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
+        with:
+          packages-dir: sdks/python/dist/
+          # Idempotent, like the crates: a re-dispatch to finish a partial
+          # release must not fail on a version that already went up.
+          skip-existing: true
+
+  publish-typescript:
+    name: Publish TypeScript SDK
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing + provenance
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Verify SDK version matches the workspace
+        run: |
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          SDK_VERSION=$(node -p "require('./sdks/typescript/package.json').version")
+          if [ "$CARGO_VERSION" != "$SDK_VERSION" ]; then
+            echo "Error: TypeScript SDK version ($SDK_VERSION) != workspace ($CARGO_VERSION)"
+            exit 1
+          fi
+          echo "TypeScript SDK version verified: $SDK_VERSION"
+
+      # Node 24: current npm@latest dropped Node 20, and trusted publishing
+      # needs a recent npm.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Build the SDK
+        run: cd sdks/typescript && npm ci && npm run build
+
+      - name: Publish to npm
+        run: |
+          cd sdks/typescript
+          VERSION=$(node -p "require('./package.json').version")
+          NAME=$(node -p "require('./package.json').name")
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "$NAME@$VERSION already on npm, skipping"
+            exit 0
+          fi
+          npm publish --provenance --access public

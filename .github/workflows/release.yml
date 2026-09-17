@@ -1,0 +1,147 @@
+name: Release
+
+# Lanok has no pull requests, so there is no merge for a human to gate on. The
+# gate is earlier and explicit: the release agent shows a human the highlights
+# and publishes nothing until they approve. This workflow is the mechanical half
+# that runs after, and it triggers on the prep commit that approval produced.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Tag and create the GitHub release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    if: "${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release): prepare v') }}"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "Error: manual releases must be dispatched from refs/heads/main"
+              exit 1
+            fi
+            VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          else
+            FIRST_LINE=$(echo "$COMMIT_MSG" | head -1)
+            VERSION=$(echo "$FIRST_LINE" | sed -n 's/.*prepare v\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/p')
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "Error: could not determine version"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+
+      # The commit subject and the manifest are two independent claims about
+      # which version this is. Releasing when they disagree ships a tag that
+      # names something the crates do not.
+      - name: Verify version matches Cargo.toml
+        env:
+          DETECTED: ${{ steps.version.outputs.version }}
+        run: |
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if [ "$DETECTED" != "$CARGO_VERSION" ]; then
+            echo "Error: commit version ($DETECTED) != Cargo.toml ($CARGO_VERSION)"
+            exit 1
+          fi
+          echo "Version verified: $CARGO_VERSION"
+
+      - name: Verify every version in the workspace agrees
+        env:
+          DETECTED: ${{ steps.version.outputs.version }}
+        run: |
+          PY=$(grep '^version' sdks/python/pyproject.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          TS=$(node -p "require('./sdks/typescript/package.json').version")
+          fail=0
+          [ "$PY" = "$DETECTED" ] || { echo "Error: Python SDK is $PY, expected $DETECTED"; fail=1; }
+          [ "$TS" = "$DETECTED" ] || { echo "Error: TypeScript SDK is $TS, expected $DETECTED"; fail=1; }
+          # Internal dependency requirements are pinned to the workspace version;
+          # a missed one publishes a crate that resolves its sibling to the
+          # previous release.
+          if grep -nE '^lanok(-[a-z]+)? = \{ version = "' Cargo.toml | grep -v "\"$DETECTED\""; then
+            echo "Error: a [workspace.dependencies] entry above is not $DETECTED"
+            fail=1
+          fi
+          [ "$fail" = 0 ] || exit 1
+          echo "Every version in the workspace reads $DETECTED"
+
+      - name: Verify the changelog has this version
+        env:
+          DETECTED: ${{ steps.version.outputs.version }}
+        run: |
+          grep -q "^## \[$DETECTED\]" CHANGELOG.md || {
+            echo "Error: CHANGELOG.md has no '## [$DETECTED]' section"
+            exit 1
+          }
+
+      - name: Verify release source is on main
+        run: |
+          git fetch --force origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Error: release source $GITHUB_SHA is not reachable from origin/main"
+            exit 1
+          fi
+
+      # The release notes are the changelog section the human approved, not a
+      # second description of the same release written from the commit log.
+      - name: Extract release notes from CHANGELOG
+        env:
+          DETECTED: ${{ steps.version.outputs.version }}
+        run: |
+          awk "/^## \[$DETECTED\]/{found=1; next} /^## \[/{if(found) exit} found{print}" \
+            CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "Error: the '## [$DETECTED]' section is empty"
+            exit 1
+          fi
+          echo "Release notes extracted for v$DETECTED"
+
+      - name: Create and verify release tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/$TAG" | awk '{print $1}')
+          if [ -n "$REMOTE_TAG_SHA" ]; then
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            TAG_SHA=$(git rev-list -n 1 "refs/tags/$TAG")
+            if [ "$TAG_SHA" != "$GITHUB_SHA" ]; then
+              echo "Error: existing tag $TAG points to $TAG_SHA, expected $GITHUB_SHA"
+              exit 1
+            fi
+            echo "Tag $TAG already at $GITHUB_SHA"
+          else
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "$TAG"
+            echo "Created tag $TAG at $GITHUB_SHA"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+
+      # A release created with GITHUB_TOKEN does not fire `release: [published]`
+      # for other workflows, so the publish has to be dispatched by hand here.
+      - name: Trigger publish workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: gh workflow run publish.yml --ref "$TAG"

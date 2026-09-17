@@ -17,7 +17,7 @@ writes is the part that is actually yours, the methods and their payloads.
 There is no client type and no server type. There is one **symmetric `Peer`**,
 and direction is a property declared on each *method*, not on the process.
 
-<img src="docs/assets/lanok-peer.svg" alt="Two peers over one connection: peer A sends echo and ping and answers ui/ask, while peer B sends ui/ask and answers echo and ping, so requests and responses flow in both directions at once" width="720" />
+<img src="https://raw.githubusercontent.com/everruns/lanok/main/docs/assets/lanok-peer.svg" alt="Two peers over one connection: peer A sends echo and ping and answers ui/ask, while peer B sends ui/ask and answers echo and ping, so requests and responses flow in both directions at once" width="720" />
 
 Both sides send. Both sides answer, over one connection, with each direction
 owning its own id space. Which methods go which way is declared, not built in:
@@ -103,7 +103,7 @@ let result = peer.request("echo", serde_json::json!({ "text": "hi" })).await?;
 | `lanok-clap` | `TransportArgs` and builtin subcommands |
 | `lanok-cli` | the `lanok` binary: `gen`, `conform` |
 
-Python and TypeScript runtimes live in [`sdks/`](sdks/), so a protocol's
+Python and TypeScript runtimes live in [`sdks/`](https://github.com/everruns/lanok/blob/main/sdks), so a protocol's
 non-Rust SDK is generated types on a shared peer loop rather than a hand-rolled
 JSON-RPC loop per protocol per language. Both languages ship the same two shapes
 Rust has, so either can be **either end** of a connection, reverse requests
@@ -112,11 +112,11 @@ three languages.
 
 ## Documentation
 
-- [docs/](docs/README.md), the public guides: getting started, the `protocol!`
+- [docs/](https://github.com/everruns/lanok/blob/main/docs/README.md), the public guides: getting started, the `protocol!`
   grammar, servers and peers, the wire, and Python and TypeScript.
-- [knowledge/](knowledge/index.md), the OKF bundle: architecture, contracts,
+- [knowledge/](https://github.com/everruns/lanok/blob/main/knowledge/index.md), the OKF bundle: architecture, contracts,
   and process, the design of record.
-- [CONTRIBUTING.md](CONTRIBUTING.md), how to build and what the merge gate is.
+- [CONTRIBUTING.md](https://github.com/everruns/lanok/blob/main/CONTRIBUTING.md), how to build and what the merge gate is.
 
 ## License
 

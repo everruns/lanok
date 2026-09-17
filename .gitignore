@@ -14,5 +14,8 @@ Cargo.lock.bak
 
 # Local Claude Code settings (per-developer)
 .claude/settings.local.json
-# The skill's one home is skills/lanok/; this is where ./skills.sh installs it.
-.claude/skills/
+# The lanok skill's one home is skills/lanok/; this is where ./skills.sh
+# installs it, and a clean replace wipes it, so the installed copy is ignored.
+# Only that copy: maintainer skills under .claude/skills/ are committed, and
+# skills.sh removes nothing but its own directory.
+.claude/skills/lanok/

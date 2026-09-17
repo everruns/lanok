@@ -21,21 +21,65 @@ protocol built on lanok from its own 1.0.
 
 ## Cutting a release
 
-1. `just check` is green on latest `main`.
-2. `just conform` passes against all three implementations.
-3. Move `CHANGELOG.md`'s `## [Unreleased]` entries under a new version heading
-   with today's date.
-4. Bump `version` in `[workspace.package]`, in every
-   `[workspace.dependencies]` entry for an internal crate, in
-   `sdks/python/pyproject.toml`, and in `sdks/typescript/package.json`.
-5. If this is the first publish after the repository becomes public, switch the
-   README's image embeds from relative paths to absolute
-   `https://raw.githubusercontent.com/everruns/lanok/main/...` URLs. crates.io
-   renders the README outside the repository, so relative paths break there.
-   Relative is correct until then: raw URLs 404 on a private repository, which
-   breaks the image for every reader including signed-in ones.
-6. `just publish-dry-run`.
-7. Tag `v<version>` and push. CI publishes.
+Lanok has no pull requests, so there is no merge for a reviewer to gate on. The
+gate is moved earlier and made explicit: **an agent asks a human to approve the
+highlights, and nothing is written until they do.** After that the release is
+mechanical, which is the right split, because everything after the prep commit
+is irreversible in practice (crates.io has no unpublish, only yank).
+
+The procedure lives in the [`release` skill](../../.claude/skills/release/SKILL.md).
+In outline:
+
+1. Every gate green on the commit being released: `just check`, `just conform`
+   against all three implementations, `just publish-dry-run`.
+2. The change set built mechanically from the commit log, reconciled against
+   `CHANGELOG.md`'s `## [Unreleased]`.
+3. **The human approves the version and the highlights.** Up to here nothing has
+   been written, so cancelling costs nothing.
+4. Only then: move `[Unreleased]` under a version heading with today's date,
+   bump `version` in `[workspace.package]`, in every `[workspace.dependencies]`
+   entry for an internal crate, in `sdks/python/pyproject.toml`, and in
+   `sdks/typescript/package.json`; `cargo update -w`; commit
+   `chore(release): prepare vX.Y.Z` directly to `main` and push.
+5. CI does the rest, and the registries are verified rather than trusted.
+
+## What CI does
+
+`release.yml` triggers on a `chore(release): prepare vX.Y.Z` subject landing on
+`main` (or a manual dispatch from `main`). It re-derives the version, refuses if
+the commit subject, `Cargo.toml`, both SDK manifests and the internal dependency
+requirements do not all agree, refuses if `CHANGELOG.md` has no section for it,
+tags `vX.Y.Z`, creates the GitHub release with that section as its notes, and
+dispatches `publish.yml`.
+
+Those re-checks duplicate what the skill already did. That is deliberate: the
+skill is one way to reach this state and a human with a terminal is another, and
+the irreversible half should not depend on which one ran.
+
+`publish.yml` publishes the crates in dependency waves and both SDKs, then polls
+the index until every crate serves the new version. Every step skips what is
+already published, so a release that fails halfway is finished by re-dispatching
+the workflow rather than by hand.
+
+## The README is rendered off-GitHub
+
+`crates.io` renders `README.md` outside the repository, so every image and link
+in it is absolute. A relative path works on GitHub and silently breaks on the
+crate page, which is the copy most readers see first.
+
+## Prerequisites
+
+| What | Where | For |
+|---|---|---|
+| `CARGO_REGISTRY_TOKEN` | repository secret | the eight crates |
+| `release` environment | repository settings | every publish job runs in it |
+| PyPI trusted publisher | project `lanok` | owner `everruns`, repo `lanok`, workflow `publish.yml`, environment `release` |
+| npm trusted publisher | package `@lanok/rpc` | the `lanok` scope must exist; same repo, workflow and environment |
+
+Both SDK publishers use OIDC, so no npm or PyPI token is stored. They must be
+registered before the first release, or the SDK jobs fail while the crates go
+up, which is exactly the half-published state the idempotent steps exist to
+avoid.
 
 ## Why the dry run is one workspace invocation
 
@@ -51,9 +95,22 @@ then cargo's job.
 
 ## Publish order
 
-Dependencies first: `lanok-core`, `lanok-transport`, `lanok-peer`,
-`lanok-macros`, `lanok-schema`, `lanok`, `lanok-clap`, `lanok-cli`. Each needs
-its dependencies visible in the index before it can publish, so the CI job waits
-between steps.
+Each crate needs its internal dependencies resolvable in the index before its
+own verify build runs, so publishing goes in waves with a wait between them:
+
+1. `lanok-core`, `lanok-macros` (no internal dependencies)
+2. `lanok-transport`, `lanok-schema`, `lanok-clap` (need `lanok-core`)
+3. `lanok-peer` (needs `lanok-transport`), `lanok-cli` (needs `lanok-schema`)
+4. `lanok` (the facade, needs all five libraries)
+
+The SDKs publish independently of the crates and of each other. They are native
+runtimes, not bindings, so a registry hiccup on one side must not block the
+other; they carry the workspace version because they implement the same protocol
+contract, not because they are built from the same source.
 
 `echo-protocol` is `publish = false`: it is a worked example, not a library.
+
+## Once a version is live
+
+mira and yolop pin lanok as a git dependency while it is unpublished. After the
+first release they move to version requirements, in those repositories.
