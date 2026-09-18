@@ -74,7 +74,7 @@ crate page, which is the copy most readers see first.
 | `CARGO_REGISTRY_TOKEN` | repository secret | the eight crates |
 | `release` environment | repository settings | every publish job runs in it |
 | PyPI trusted publisher | project `lanok` | owner `everruns`, repo `lanok`, workflow `publish.yml`, environment `release` |
-| npm trusted publisher | package `@lanok/rpc` | the `lanok` scope must exist; same repo, workflow and environment |
+| npm trusted publisher | package `lanok` | same repo, workflow and environment |
 
 Both SDK publishers use OIDC, so no npm or PyPI token is stored. They must be
 registered before the first release, or the SDK jobs fail while the crates go
@@ -101,22 +101,24 @@ actually uses it, so a first release should not sit half-prepared for long.
 
 **npm has a chicken and egg problem.** A trusted publisher is configured on a
 package's settings page, and an unpublished package has no settings page, so
-`@lanok/rpc` cannot be pre-registered the way PyPI can. The first version goes
-up by hand and every later one is OIDC:
+`lanok` cannot be pre-registered the way PyPI can. The first version goes up by
+hand and every later one is OIDC:
 
-1. Create the npm organization `lanok`, which is what makes the `@lanok` scope
-   exist. Scopes are org or user names; there is no way to publish into a scope
-   that belongs to nobody.
-2. Publish once by hand, from a checkout at the release commit:
-   `cd sdks/typescript && npm ci && npm run build && npm publish --access public`.
-   Scoped packages are private by default, hence `--access public`.
-3. Then open the package settings on npmjs.com and add the GitHub Actions
+1. Publish once by hand, from a checkout at the release commit:
+   `cd sdks/typescript && npm ci && npm run build && npm publish`.
+2. Then open the package settings on npmjs.com and add the GitHub Actions
    trusted publisher with the four values above.
 
-Doing step 2 before the release commit lands is deliberate rather than a
+Doing step 1 before the release commit lands is deliberate rather than a
 workaround: `publish.yml` skips a version already on the registry, so the npm
 job goes green on the first release instead of failing, and every release after
 it publishes through OIDC with provenance.
+
+The package is `lanok`, unscoped, so there is no npm organization in the way.
+A scope on npm is an organization or a user, never a free-standing namespace,
+so a scoped name would have meant creating and owning one just to publish a
+single package. Unscoped also keeps one identity across all three registries,
+which is the same reason the SDKs share the workspace version.
 
 ## Why the dry run is one workspace invocation
 

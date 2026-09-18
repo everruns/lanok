@@ -14,7 +14,7 @@ of a connection.
 
 ```bash
 pip install lanok          # Python
-npm install @lanok/rpc     # TypeScript
+npm install lanok     # TypeScript
 ```
 
 ## Generate your protocol's types
@@ -44,7 +44,7 @@ Server("echo", "1.0").on_request(
 ```
 
 ```ts
-import { Server } from "@lanok/rpc";
+import { Server } from "lanok";
 
 await new Server("echo", "1.0")
   .onRequest("echo", (params) => ({ text: String(params.text).toUpperCase() }))
@@ -84,7 +84,7 @@ with connect_child(["./my-server"], router, serve_handshake=ours, request_timeou
 ```
 
 ```ts
-import { Router, connectChild } from "@lanok/rpc";
+import { Router, connectChild } from "lanok";
 
 const router = new Router().onNotification("progress", (p) => console.log(p));
 const ours = { name: "my-host", protocolVersion: "1.0", capabilities: ["ui_ask"] };
@@ -128,7 +128,7 @@ peer.wait_closed()
 ```
 
 ```ts
-import { Peer, Router, stdio } from "@lanok/rpc";
+import { Peer, Router, stdio } from "lanok";
 
 async function echo(params, peer) {
   peer.notify("echo/progress", { step: 1, of: 1 });

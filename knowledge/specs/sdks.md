@@ -102,7 +102,7 @@ SDKs fails the build rather than shipping a mismatch.
 | Language | Package | Notes |
 |----------|---------|-------|
 | Python | `lanok` on PyPI | `requires-python >= 3.11` for `NotRequired` |
-| TypeScript | `@lanok/rpc` on npm | ESM only, Node 20+ |
+| TypeScript | `lanok` on npm | ESM only, Node 20+ |
 
 Versions track the Rust crates, because the wire contract they implement is the
 same one. A runtime change that is not a wire change still bumps with the rest:

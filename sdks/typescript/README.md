@@ -1,4 +1,4 @@
-# @lanok/rpc
+# lanok
 
 Build JSON-RPC 2.0 protocols in TypeScript, on the same wire contract the Rust
 core implements. TypeScript can be **either end** of a connection.
@@ -9,7 +9,7 @@ One request at a time, no concurrency model to reason about. The right answer
 for a small tool server.
 
 ```ts
-import { Server } from "@lanok/rpc";
+import { Server } from "lanok";
 
 await new Server("echo", "1.0")
   .onRequest("echo", (params) => ({ text: String(params.text).toUpperCase() }))
@@ -32,7 +32,7 @@ server.onRequest("work", (_params, context) => {
 ## Driving a server
 
 ```ts
-import { Router, connectChild } from "@lanok/rpc";
+import { Router, connectChild } from "lanok";
 
 const ours = { name: "my-host", protocolVersion: "1.0", capabilities: ["ui_ask"] };
 const router = new Router().onRequest("ui/ask", () => ({ answer: "yes" }));
@@ -49,7 +49,7 @@ A reverse request needs `Peer`, not `Server`: a serial loop cannot wait for a
 reply while it is busy producing one.
 
 ```ts
-import { Peer, Router, stdio } from "@lanok/rpc";
+import { Peer, Router, stdio } from "lanok";
 
 async function echo(params, peer) {
   if (peer.supports("ui_ask")) {

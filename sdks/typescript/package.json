@@ -1,5 +1,5 @@
 {
-  "name": "@lanok/rpc",
+  "name": "lanok",
   "version": "0.1.0",
   "description": "Build JSON-RPC 2.0 protocols in TypeScript, on the lanok wire contract.",
   "license": "MIT",

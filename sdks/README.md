@@ -66,4 +66,4 @@ missing.
 | Language | Package | Import |
 |----------|---------|--------|
 | Python | `lanok` (PyPI) | `from lanok import Server` |
-| TypeScript | `@lanok/rpc` (npm) | `import { Server } from "@lanok/rpc"` |
+| TypeScript | `lanok` (npm) | `import { Server } from "lanok"` |

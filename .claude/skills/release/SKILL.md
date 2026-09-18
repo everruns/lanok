@@ -126,7 +126,7 @@ python3 scripts/verify_crates_publish.py --expected "$VERSION" \
   lanok-core lanok-macros lanok-transport lanok-schema lanok-clap \
   lanok-peer lanok-cli lanok
 curl -s https://pypi.org/pypi/lanok/json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['version'])"
-npm view @lanok/rpc version
+npm view lanok version
 ```
 
 Declare **shipped** only when all three registries report the version. On
@@ -141,22 +141,22 @@ the gaps rather than failing on them. Never leave a release half-published.
 | `CARGO_REGISTRY_TOKEN` | repo secret | the eight crates |
 | `release` environment | repo settings | every publish job runs in it |
 | PyPI trusted publisher | pypi.org, project `lanok` | owner `everruns`, repo `lanok`, workflow `publish.yml`, environment `release` |
-| npm trusted publisher | npmjs.com, package `@lanok/rpc` | the `lanok` scope must exist; same repo/workflow/environment |
+| npm trusted publisher | npmjs.com, package `lanok` | same repo/workflow/environment |
 
 The two trusted publishers use OIDC, so there is no npm or PyPI token to store.
 Both must be registered before the first release, or those jobs fail while the
 crates go up, which is a half-published release. The spec's
 [registration steps](../../../knowledge/specs/release-process.md) carry the
 exact values, and the npm caveat: a trusted publisher lives on an existing
-package's settings page, so `@lanok/rpc` cannot be pre-registered the way a
-PyPI pending publisher can. Its first version is published by hand, and
+package's settings page, so `lanok` cannot be pre-registered the way a PyPI
+pending publisher can. Its first version is published by hand, and
 `publish.yml` then skips it rather than failing.
 
 Before asking for approval, check the ones that matter for this release:
 
 ```bash
 curl -s https://pypi.org/pypi/lanok/json >/dev/null && echo "PyPI project exists"
-npm view @lanok/rpc version 2>/dev/null || echo "npm package does not exist yet"
+npm view lanok version 2>/dev/null || echo "npm package does not exist yet"
 ```
 
 ## After the first publish

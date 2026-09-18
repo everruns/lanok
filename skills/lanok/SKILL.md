@@ -149,7 +149,7 @@ Peer(router, serve_handshake=Hello("echo","1.0",["ui_ask"])).connect(stdio())  #
 ```
 
 ```ts
-import { Peer, Router, Server, connectChild, stdio } from "@lanok/rpc";
+import { Peer, Router, Server, connectChild, stdio } from "lanok";
 ```
 
 A reverse request needs `Peer`, not `Server`: a serial loop cannot wait for a

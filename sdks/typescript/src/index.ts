@@ -10,7 +10,7 @@
  * at a time and cannot send one, which is all a small tool server needs.
  *
  * ```ts
- * import { Server } from "@lanok/rpc";
+ * import { Server } from "lanok";
  *
  * await new Server("echo", "1.0")
  *   .onRequest("echo", (params) => ({ text: String((params as any).text).toUpperCase() }))
@@ -22,7 +22,7 @@
  * direction.
  *
  * ```ts
- * import { Router, connectChild } from "@lanok/rpc";
+ * import { Router, connectChild } from "lanok";
  *
  * const peer = connectChild(["./my-server"], new Router().onRequest("ui/ask", answer));
  * await peer.handshake({ name: "my-host", protocolVersion: "1.0", capabilities: ["ui_ask"] });
